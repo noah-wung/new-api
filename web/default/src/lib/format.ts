@@ -170,7 +170,7 @@ export function formatLogQuota(quota: number): string {
  * Format tokens count with K/M suffixes
  */
 export function formatTokens(tokens: number): string {
-  if (tokens === 0) return '-'
+  if (tokens === 0) return '0'
   if (tokens < 1000) return tokens.toString()
   if (tokens < 1000000) return `${(tokens / 1000).toFixed(1)}K`
   return `${(tokens / 1000000).toFixed(2)}M`

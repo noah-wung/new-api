@@ -45,22 +45,32 @@ let themeManagerPromise: Promise<
 
 const USER_CHARTS: {
   value: string
-  labelKey: string
+  quotaLabelKey: string
+  tokensLabelKey: string
   specKey: keyof ProcessedUserChartData
 }[] = [
   {
     value: 'rank',
-    labelKey: 'User Consumption Ranking',
+    quotaLabelKey: 'User Consumption Ranking',
+    tokensLabelKey: 'User Token Ranking',
     specKey: 'spec_user_rank',
   },
   {
     value: 'trend',
-    labelKey: 'User Consumption Trend',
+    quotaLabelKey: 'User Consumption Trend',
+    tokensLabelKey: 'User Token Trend',
     specKey: 'spec_user_trend',
   },
 ]
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
+
+type UserMetric = 'quota' | 'tokens'
+
+const USER_METRIC_OPTIONS: { value: UserMetric; labelKey: string }[] = [
+  { value: 'quota', labelKey: 'Quota' },
+  { value: 'tokens', labelKey: 'Tokens' },
+]
 
 export function UserCharts() {
   const { t } = useTranslation()
@@ -78,6 +88,7 @@ export function UserCharts() {
     getDefaultDays(timeGranularity)
   )
   const [topUserLimit, setTopUserLimit] = useState(10)
+  const [userMetric, setUserMetric] = useState<UserMetric>('quota')
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
     const { start, end } = getRollingDateRange(days)
@@ -127,7 +138,7 @@ export function UserCharts() {
   const { data: userData, isLoading } = useQuery({
     queryKey: ['dashboard', 'user-quota', timeRange],
     queryFn: () => getUserQuotaDataByUsers(timeRange),
-    select: (res) => (res.success ? res.data : []),
+    select: (res) => (res.success ? (res.data ?? []) : []),
     staleTime: 60_000,
   })
 
@@ -138,7 +149,8 @@ export function UserCharts() {
         timeGranularity,
         t,
         topUserLimit,
-        customization.preset
+        customization.preset,
+        userMetric
       ),
     [
       userData,
@@ -147,9 +159,15 @@ export function UserCharts() {
       t,
       topUserLimit,
       customization.preset,
-      customization.radius,
+      userMetric,
     ]
   )
+
+  const uniqueUserCount = useMemo(() => {
+    if (!userData || userData.length === 0) return 0
+    const names = new Set(userData.map((item) => item.username || 'unknown'))
+    return names.size
+  }, [userData])
 
   return (
     <div className='space-y-3'>
@@ -191,6 +209,23 @@ export function UserCharts() {
         </div>
 
         <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
+          {USER_METRIC_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type='button'
+              onClick={() => setUserMetric(opt.value)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                userMetric === opt.value
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {t(opt.labelKey)}
+            </button>
+          ))}
+        </div>
+
+        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
           <span className='text-muted-foreground px-2 text-xs font-medium'>
             {t('Top Users')}
           </span>
@@ -218,6 +253,14 @@ export function UserCharts() {
       <div className='grid gap-3'>
         {USER_CHARTS.map((chart) => {
           const spec = chartData[chart.specKey]
+          const labelKey =
+            userMetric === 'tokens' ? chart.tokensLabelKey : chart.quotaLabelKey
+          const isRank = chart.value === 'rank'
+          const visibleUserCount = Math.min(topUserLimit, uniqueUserCount)
+          const rankChartHeight = Math.min(
+            1600,
+            Math.max(300, visibleUserCount * 28 + 60)
+          )
 
           return (
             <div
@@ -226,17 +269,24 @@ export function UserCharts() {
             >
               <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
                 <Users className='text-muted-foreground/60 size-4' />
-                <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
+                <div className='text-sm font-semibold'>{t(labelKey)}</div>
               </div>
 
-              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
+              <div
+                className={
+                  isRank
+                    ? 'p-1.5 sm:p-2'
+                    : 'h-[300px] p-1.5 sm:h-96 sm:p-2'
+                }
+                style={isRank ? { height: `${rankChartHeight}px` } : undefined}
+              >
                 {isLoading ? (
                   <Skeleton className='h-full w-full' />
                 ) : (
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
+                      key={`user-${chart.value}-${topUserLimit}-${userMetric}-${resolvedTheme}-${customization.preset}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',

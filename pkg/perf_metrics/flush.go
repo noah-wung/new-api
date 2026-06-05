@@ -10,6 +10,12 @@ import (
 	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 )
 
+// FlushResult holds the result of a flush operation.
+type FlushResult struct {
+	Flushed int `json:"flushed"`
+	Failed  int `json:"failed"`
+}
+
 func flushLoop() {
 	for {
 		interval := perf_metrics_setting.GetFlushIntervalMinutes()
@@ -18,16 +24,20 @@ func flushLoop() {
 		if !setting.Enabled {
 			continue
 		}
-		flushCompletedBuckets()
+		flushBuckets(false)
 		cleanupExpiredMetrics(setting.RetentionDays)
 	}
 }
 
-func flushCompletedBuckets() {
+// flushBuckets drains in-memory buckets and upserts to DB.
+// When includeCurrent is false, only completed (past) buckets are flushed (used by flushLoop).
+// When includeCurrent is true, the current time bucket is also flushed (used by manual API).
+func flushBuckets(includeCurrent bool) FlushResult {
+	result := FlushResult{}
 	currentBucket := bucketStart(time.Now().Unix())
 	hotBuckets.Range(func(key, value any) bool {
 		k := key.(bucketKey)
-		if k.bucketTs >= currentBucket {
+		if !includeCurrent && k.bucketTs >= currentBucket {
 			return true
 		}
 
@@ -53,12 +63,26 @@ func flushCompletedBuckets() {
 		if err != nil {
 			bucket.addCounters(drained)
 			common.SysError(fmt.Sprintf("failed to flush perf metric bucket model=%s group=%s bucket=%d: %s", k.model, k.group, k.bucketTs, err.Error()))
+			result.Failed++
 			return true
 		}
 
+		result.Flushed++
 		deleteOldEmptyBucket(k, key)
 		return true
 	})
+	return result
+}
+
+// FlushNow triggers an immediate flush. When includeCurrent is true, the current
+// time bucket is also flushed — use this before container restarts to avoid data loss.
+// Returns zero-value FlushResult when perf_metrics is disabled (controller handles the response).
+func FlushNow(includeCurrent bool) FlushResult {
+	setting := perf_metrics_setting.GetSetting()
+	if !setting.Enabled {
+		return FlushResult{}
+	}
+	return flushBuckets(includeCurrent)
 }
 
 func deleteOldEmptyBucket(k bucketKey, rawKey any) {

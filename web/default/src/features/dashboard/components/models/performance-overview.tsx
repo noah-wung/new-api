@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Gauge, HeartPulse, Timer } from 'lucide-react'
+import { Activity, Coins, Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatNumber } from '@/lib/format'
+import { formatTokens, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { getUserQuotaDates } from '@/features/dashboard/api'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
   formatLatency,
@@ -49,6 +50,7 @@ type PerformanceSummary = {
   avgLatencyMs: number
   avgTps: number
   successRate: number
+  totalTokens: number
 }
 
 function weightedAverage(
@@ -71,7 +73,10 @@ function weightedAverage(
   return weight > 0 ? total / weight : 0
 }
 
-function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
+function buildPerformanceSummary(
+  rows: PerfModelSummary[],
+  totalTokens: number
+): PerformanceSummary {
   const totalRequests = rows.reduce(
     (sum, row) => sum + (Number(row.request_count) || 0),
     0
@@ -92,6 +97,7 @@ function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
       (value) => Number.isFinite(value) && value > 0
     ),
     successRate: weightedAverage(rows, 'success_rate', Number.isFinite),
+    totalTokens,
   }
 }
 
@@ -168,7 +174,13 @@ function PerformanceTableHeader(props: { description: string }) {
   )
 }
 
-export function PerformanceOverview() {
+interface PerformanceOverviewProps {
+  isAdmin?: boolean
+}
+
+export function PerformanceOverview({
+  isAdmin = false,
+}: PerformanceOverviewProps) {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
@@ -177,6 +189,52 @@ export function PerformanceOverview() {
     retry: false,
   })
 
+  const scope = isAdmin ? 'admin' : 'self'
+
+  const tokenQuery = useQuery({
+    queryKey: [
+      'dashboard',
+      'perf-token-data',
+      scope,
+      isAdmin,
+      PERFORMANCE_WINDOW_HOURS,
+    ] as const,
+    queryFn: async ({ queryKey }) => {
+      const [, , , queryIsAdmin, windowHours] = queryKey
+      const now = Math.floor(Date.now() / 1000)
+      const res = await getUserQuotaDates(
+        {
+          start_timestamp: now - windowHours * 3600,
+          end_timestamp: now,
+        },
+        queryIsAdmin
+      )
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to fetch usage')
+      }
+      return res.data ?? []
+    },
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
+  const tokenByModel = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!tokenQuery.data) return map
+    for (const item of tokenQuery.data) {
+      const model = item.model_name || 'Unknown'
+      const tokens = Number(item.token_used) || 0
+      map.set(model, (map.get(model) || 0) + tokens)
+    }
+    return map
+  }, [tokenQuery.data])
+
+  const totalTokens = useMemo(() => {
+    let sum = 0
+    for (const v of tokenByModel.values()) sum += v
+    return sum
+  }, [tokenByModel])
+
   const models = useMemo(
     () =>
       [...(metricsQuery.data?.data.models ?? [])]
@@ -184,16 +242,20 @@ export function PerformanceOverview() {
         .sort((a, b) => b.request_count - a.request_count),
     [metricsQuery.data]
   )
-  const summary = useMemo(() => buildPerformanceSummary(models), [models])
+  const summary = useMemo(
+    () => buildPerformanceSummary(models, totalTokens),
+    [models, totalTokens]
+  )
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
-  const loading = metricsQuery.isLoading
+  const loading = metricsQuery.isLoading || tokenQuery.isLoading
+  const tokenDataUnavailable = tokenQuery.isError
   const hasData = models.length > 0
   const description = t('Performance metrics for the last 24 hours')
 
   return (
     <section className='space-y-3 sm:space-y-4'>
       <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-4'>
+        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-5'>
           <PerformanceMetricItem
             icon={Activity}
             label={t('Requests (24h)')}
@@ -223,6 +285,24 @@ export function PerformanceOverview() {
             loading={loading}
             valueClassName={successRateClassName(summary.successRate)}
           />
+          <PerformanceMetricItem
+            icon={Coins}
+            label={t('Tokens (24h)')}
+            value={
+              tokenDataUnavailable
+                ? t('Not available')
+                : formatTokens(summary.totalTokens)
+            }
+            hint={
+              tokenDataUnavailable
+                ? t('Failed to fetch usage')
+                : t('Delayed usage export data')
+            }
+            loading={loading}
+            valueClassName={
+              tokenDataUnavailable ? 'text-muted-foreground' : undefined
+            }
+          />
         </div>
       </div>
 
@@ -250,6 +330,7 @@ export function PerformanceOverview() {
                   <TableHead className='text-right'>
                     {t('Success rate')}
                   </TableHead>
+                  <TableHead className='text-right'>{t('Tokens')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -270,6 +351,9 @@ export function PerformanceOverview() {
                         </TableCell>
                         <TableCell className='text-right'>
                           <Skeleton className='ml-auto h-4 w-20' />
+                        </TableCell>
+                        <TableCell className='text-right'>
+                          <Skeleton className='ml-auto h-4 w-16' />
                         </TableCell>
                       </TableRow>
                     ))
@@ -303,6 +387,13 @@ export function PerformanceOverview() {
                             />
                             {formatUptimePct(model.success_rate)}
                           </span>
+                        </TableCell>
+                        <TableCell className='text-right font-mono tabular-nums'>
+                          {tokenDataUnavailable
+                            ? t('Not available')
+                            : formatTokens(
+                                tokenByModel.get(model.model_name) || 0
+                              )}
                         </TableCell>
                       </TableRow>
                     ))}

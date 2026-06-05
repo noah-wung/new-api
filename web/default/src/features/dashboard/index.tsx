@@ -111,8 +111,8 @@ function PerformanceOverviewFallback() {
   return (
     <div className='space-y-3 sm:space-y-4'>
       <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-4'>
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-5'>
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className='px-3 py-2.5 sm:px-5 sm:py-4'>
               <Skeleton className='h-4 w-24' />
               <Skeleton className='mt-2 h-7 w-20' />
@@ -269,7 +269,7 @@ export function Dashboard() {
               </FadeIn>
               <FadeIn delay={0.1}>
                 <Suspense fallback={<PerformanceOverviewFallback />}>
-                  <LazyPerformanceOverview />
+                  <LazyPerformanceOverview isAdmin={isAdmin} />
                 </Suspense>
               </FadeIn>
               <FadeIn delay={0.15}>
