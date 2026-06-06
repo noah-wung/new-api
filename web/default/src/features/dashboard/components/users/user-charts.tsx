@@ -47,21 +47,31 @@ let themeManagerPromise: Promise<
 const USER_CHARTS: {
   value: string
   labelKey: string
+  tokensLabelKey: string
   specKey: keyof ProcessedUserChartData
 }[] = [
   {
     value: 'rank',
     labelKey: 'User Consumption Ranking',
+    tokensLabelKey: 'User Token Ranking',
     specKey: 'spec_user_rank',
   },
   {
     value: 'trend',
     labelKey: 'User Consumption Trend',
+    tokensLabelKey: 'User Token Trend',
     specKey: 'spec_user_trend',
   },
 ]
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
+
+type UserMetric = 'quota' | 'tokens'
+
+const USER_METRIC_OPTIONS: { value: UserMetric; labelKey: string }[] = [
+  { value: 'quota', labelKey: 'Quota' },
+  { value: 'tokens', labelKey: 'Tokens' },
+]
 
 export function UserCharts() {
   const { t } = useTranslation()
@@ -79,6 +89,7 @@ export function UserCharts() {
     getDefaultDays(timeGranularity)
   )
   const [topUserLimit, setTopUserLimit] = useState(10)
+  const [userMetric, setUserMetric] = useState<UserMetric>('quota')
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
     const { start, end } = getRollingDateRange(days)
@@ -139,7 +150,8 @@ export function UserCharts() {
         timeGranularity,
         t,
         topUserLimit,
-        customization.preset
+        customization.preset,
+        userMetric
       ),
     [
       userData,
@@ -149,6 +161,7 @@ export function UserCharts() {
       topUserLimit,
       customization.preset,
       customization.radius,
+      userMetric,
     ]
   )
 
@@ -214,6 +227,23 @@ export function UserCharts() {
           </TabsList>
         </Tabs>
 
+        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
+          {USER_METRIC_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type='button'
+              onClick={() => setUserMetric(opt.value)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                userMetric === opt.value
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {t(opt.labelKey)}
+            </button>
+          ))}
+        </div>
+
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
         )}
@@ -222,6 +252,8 @@ export function UserCharts() {
       <div className='grid gap-3'>
         {USER_CHARTS.map((chart) => {
           const spec = chartData[chart.specKey]
+          const titleKey =
+            userMetric === 'tokens' ? chart.tokensLabelKey : chart.labelKey
 
           return (
             <div
@@ -230,7 +262,7 @@ export function UserCharts() {
             >
               <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
                 <Users className='text-muted-foreground/60 size-4' />
-                <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
+                <div className='text-sm font-semibold'>{t(titleKey)}</div>
               </div>
 
               <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
@@ -240,7 +272,7 @@ export function UserCharts() {
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
+                      key={`user-${chart.value}-${topUserLimit}-${userMetric}-${resolvedTheme}-${customization.preset}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',
