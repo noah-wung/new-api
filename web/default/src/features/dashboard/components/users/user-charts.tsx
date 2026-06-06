@@ -26,6 +26,7 @@ import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
@@ -45,32 +46,22 @@ let themeManagerPromise: Promise<
 
 const USER_CHARTS: {
   value: string
-  quotaLabelKey: string
-  tokensLabelKey: string
+  labelKey: string
   specKey: keyof ProcessedUserChartData
 }[] = [
   {
     value: 'rank',
-    quotaLabelKey: 'User Consumption Ranking',
-    tokensLabelKey: 'User Token Ranking',
+    labelKey: 'User Consumption Ranking',
     specKey: 'spec_user_rank',
   },
   {
     value: 'trend',
-    quotaLabelKey: 'User Consumption Trend',
-    tokensLabelKey: 'User Token Trend',
+    labelKey: 'User Consumption Trend',
     specKey: 'spec_user_trend',
   },
 ]
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
-
-type UserMetric = 'quota' | 'tokens'
-
-const USER_METRIC_OPTIONS: { value: UserMetric; labelKey: string }[] = [
-  { value: 'quota', labelKey: 'Quota' },
-  { value: 'tokens', labelKey: 'Tokens' },
-]
 
 export function UserCharts() {
   const { t } = useTranslation()
@@ -88,7 +79,6 @@ export function UserCharts() {
     getDefaultDays(timeGranularity)
   )
   const [topUserLimit, setTopUserLimit] = useState(10)
-  const [userMetric, setUserMetric] = useState<UserMetric>('quota')
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
     const { start, end } = getRollingDateRange(days)
@@ -138,7 +128,7 @@ export function UserCharts() {
   const { data: userData, isLoading } = useQuery({
     queryKey: ['dashboard', 'user-quota', timeRange],
     queryFn: () => getUserQuotaDataByUsers(timeRange),
-    select: (res) => (res.success ? (res.data ?? []) : []),
+    select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })
 
@@ -149,8 +139,7 @@ export function UserCharts() {
         timeGranularity,
         t,
         topUserLimit,
-        customization.preset,
-        userMetric
+        customization.preset
       ),
     [
       userData,
@@ -159,91 +148,71 @@ export function UserCharts() {
       t,
       topUserLimit,
       customization.preset,
-      userMetric,
+      customization.radius,
     ]
   )
-
-  const uniqueUserCount = useMemo(() => {
-    if (!userData || userData.length === 0) return 0
-    const names = new Set(userData.map((item) => item.username || 'unknown'))
-    return names.size
-  }, [userData])
 
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          {TIME_RANGE_PRESETS.map((preset) => (
-            <button
-              key={preset.days}
-              type='button'
-              onClick={() => handleRangeChange(preset.days)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                selectedRange === preset.days
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t(preset.label)}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={String(selectedRange)}
+          onValueChange={(value) => handleRangeChange(Number(value))}
+          className='shrink-0'
+        >
+          <TabsList>
+            {TIME_RANGE_PRESETS.map((preset) => (
+              <TabsTrigger
+                key={preset.days}
+                value={String(preset.days)}
+                className='px-2.5 text-xs'
+              >
+                {t(preset.label)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          {TIME_GRANULARITY_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type='button'
-              onClick={() =>
-                handleGranularityChange(opt.value as TimeGranularity)
-              }
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                timeGranularity === opt.value
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t(opt.label)}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={timeGranularity}
+          onValueChange={(value) =>
+            handleGranularityChange(value as TimeGranularity)
+          }
+          className='shrink-0'
+        >
+          <TabsList>
+            {TIME_GRANULARITY_OPTIONS.map((opt) => (
+              <TabsTrigger
+                key={opt.value}
+                value={opt.value}
+                className='px-2.5 text-xs'
+              >
+                {t(opt.label)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          {USER_METRIC_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type='button'
-              onClick={() => setUserMetric(opt.value)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                userMetric === opt.value
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t(opt.labelKey)}
-            </button>
-          ))}
-        </div>
-
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          <span className='text-muted-foreground px-2 text-xs font-medium'>
-            {t('Top Users')}
-          </span>
-          {TOP_USER_LIMIT_OPTIONS.map((limit) => (
-            <button
-              key={limit}
-              type='button'
-              onClick={() => setTopUserLimit(limit)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                topUserLimit === limit
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t('Top {{count}}', { count: limit })}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={String(topUserLimit)}
+          onValueChange={(value) => setTopUserLimit(Number(value))}
+          className='shrink-0'
+        >
+          <TabsList>
+            <span className='text-muted-foreground px-2 text-xs font-medium whitespace-nowrap'>
+              {t('Top Users')}
+            </span>
+            {TOP_USER_LIMIT_OPTIONS.map((limit) => (
+              <TabsTrigger
+                key={limit}
+                value={String(limit)}
+                className='px-2.5 text-xs'
+              >
+                {t('Top {{count}}', { count: limit })}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
@@ -253,14 +222,6 @@ export function UserCharts() {
       <div className='grid gap-3'>
         {USER_CHARTS.map((chart) => {
           const spec = chartData[chart.specKey]
-          const labelKey =
-            userMetric === 'tokens' ? chart.tokensLabelKey : chart.quotaLabelKey
-          const isRank = chart.value === 'rank'
-          const visibleUserCount = Math.min(topUserLimit, uniqueUserCount)
-          const rankChartHeight = Math.min(
-            1600,
-            Math.max(300, visibleUserCount * 28 + 60)
-          )
 
           return (
             <div
@@ -269,24 +230,17 @@ export function UserCharts() {
             >
               <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
                 <Users className='text-muted-foreground/60 size-4' />
-                <div className='text-sm font-semibold'>{t(labelKey)}</div>
+                <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
               </div>
 
-              <div
-                className={
-                  isRank
-                    ? 'p-1.5 sm:p-2'
-                    : 'h-[300px] p-1.5 sm:h-96 sm:p-2'
-                }
-                style={isRank ? { height: `${rankChartHeight}px` } : undefined}
-              >
+              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
                 {isLoading ? (
                   <Skeleton className='h-full w-full' />
                 ) : (
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${userMetric}-${resolvedTheme}-${customization.preset}`}
+                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',
