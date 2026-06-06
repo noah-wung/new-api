@@ -259,7 +259,7 @@ export function Dashboard() {
               {isAdmin && (
                 <FadeIn delay={0.05}>
                   <Suspense fallback={<PerformanceOverviewFallback />}>
-                    <LazyPerformanceOverview />
+                    <LazyPerformanceOverview isAdmin={isAdmin} />
                   </Suspense>
                 </FadeIn>
               )}

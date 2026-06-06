@@ -18,16 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Gauge, HeartPulse, Timer } from 'lucide-react'
+import { Coins, Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getUserQuotaDates } from '@/features/dashboard/api'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
 } from '@/features/performance-metrics/lib/format'
+import { formatTokens } from '@/lib/format'
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
 
 const PERFORMANCE_WINDOW_HOURS = 24
@@ -40,6 +42,7 @@ type PerformanceSummary = {
   avgLatencyMs: number
   avgTps: number
   successRate: number
+  totalTokens: number
 }
 
 function simpleAverage(
@@ -60,7 +63,10 @@ function simpleAverage(
   return count > 0 ? total / count : NaN
 }
 
-function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
+function buildPerformanceSummary(
+  rows: PerfModelSummary[],
+  totalTokens: number
+): PerformanceSummary {
   return {
     totalRequests: rows.length,
     avgLatencyMs: Math.round(
@@ -76,6 +82,7 @@ function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
       (value) => Number.isFinite(value) && value > 0
     ),
     successRate: simpleAverage(rows, 'success_rate', Number.isFinite),
+    totalTokens,
   }
 }
 
@@ -93,7 +100,13 @@ function successDotClassName(successRate: number): string {
   return 'bg-destructive'
 }
 
-export function PerformanceOverview() {
+interface PerformanceOverviewProps {
+  isAdmin?: boolean
+}
+
+export function PerformanceOverview({
+  isAdmin = false,
+}: PerformanceOverviewProps) {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
@@ -102,11 +115,49 @@ export function PerformanceOverview() {
     retry: false,
   })
 
+  const tokenQuery = useQuery({
+    queryKey: [
+      'dashboard',
+      'perf-token-data',
+      isAdmin,
+      PERFORMANCE_WINDOW_HOURS,
+    ] as const,
+    queryFn: async ({ queryKey }) => {
+      const [, , queryIsAdmin, windowHours] = queryKey
+      const now = Math.floor(Date.now() / 1000)
+      const res = await getUserQuotaDates(
+        {
+          start_timestamp: now - windowHours * 3600,
+          end_timestamp: now,
+        },
+        queryIsAdmin
+      )
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to fetch usage')
+      }
+      return res.data ?? []
+    },
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
+  const totalTokens = useMemo(() => {
+    if (!tokenQuery.data) return 0
+    let sum = 0
+    for (const item of tokenQuery.data) {
+      sum += Number(item.token_used) || 0
+    }
+    return sum
+  }, [tokenQuery.data])
+
   const models = useMemo(
     () => metricsQuery.data?.data.models ?? [],
     [metricsQuery.data]
   )
-  const summary = useMemo(() => buildPerformanceSummary(models), [models])
+  const summary = useMemo(
+    () => buildPerformanceSummary(models, totalTokens),
+    [models, totalTokens]
+  )
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
   const hasData = models.length > 0
@@ -136,10 +187,10 @@ export function PerformanceOverview() {
         {/* Separator */}
         <div className='bg-border hidden h-4 w-px sm:block' />
 
-        {/* 3 KPI inline metrics */}
+        {/* 4 KPI inline metrics */}
         {loading ? (
           <div className='flex flex-wrap items-center gap-x-5 gap-y-2'>
-            {Array.from({ length: 3 }).map((_, i) => (
+            {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className='flex items-center gap-1.5'>
                 <Skeleton className='h-3 w-14' />
                 <Skeleton className='h-4 w-16' />
@@ -163,6 +214,11 @@ export function PerformanceOverview() {
               icon={Gauge}
               label={t('Throughput')}
               value={formatThroughput(summary.avgTps)}
+            />
+            <InlineMetric
+              icon={Coins}
+              label={t('Tokens (24h)')}
+              value={formatTokens(summary.totalTokens)}
             />
           </div>
         )}
