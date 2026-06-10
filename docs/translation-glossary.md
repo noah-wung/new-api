@@ -9,9 +9,10 @@ This document provides standard translation references for key terminology in th
 | 中文 | English | 说明 | Description |
 |------|---------|------|-------------|
 | 倍率 | Ratio | 用于计算价格的乘数因子 | Multiplier factor used for price calculation |
-| 令牌 | Token | API访问凭证，也指模型处理的文本单元 | API access credentials or text units processed by models |
+| 令牌 | Token | API访问凭证 | API access credential |
+| token | token | 模型处理的文本单元 | Text unit processed by models |
 | 渠道 | Channel | API服务提供商的接入通道 | Access channel for API service providers |
-| 分组 | Group | 用户或令牌的分类，影响价格倍率 | Classification of users or tokens, affecting price ratios |
+| 分组 | Group | 用户或令牌的分类，影响价格倍率 | Classification of users or API tokens, affecting price ratios |
 | 额度 | Quota | 用户可用的服务额度 | Available service quota for users |
 
 ## 模型相关 (Model Related)
@@ -74,10 +75,8 @@ This document provides standard translation references for key terminology in th
 - **补全 (Completion)** = 模型输出内容 / Model output content
 - **倍率 (Ratio)** = 价格计算的乘数因子 / Multiplier factor for price calculation
 - **额度 (Quota)** = 可用的用户服务额度，有时也翻译为 Credit / Available service quota for users, sometimes also translated as Credit
-- **Token** = 根据上下文可能指 / Depending on context, may refer to:
-  - API访问令牌 (API Token)
-  - 模型处理的文本单元 (Text Token)
-  - 系统访问令牌 (Access Token)
+- **令牌 (API Token / Access Token)** = API访问凭证 / API access credential
+- **token (Text Token)** = 模型处理的文本单元 / Text unit processed by models
 
 ---
 

@@ -13,7 +13,8 @@ This document provides standard French translations for key project terminology 
 | Chinois | Français | Anglais | Description |
 |---------|----------|---------|-------------|
 | 倍率 | Ratio | Ratio/Multiplier | Multiplicateur utilisé pour le calcul des prix. **Important :** Dans le contexte des calculs de prix, toujours utiliser "Ratio" plutôt que "Multiplicateur" pour assurer la cohérence terminologique |
-| 令牌 | Jeton | Token | Identifiants d'accès API ou unités de texte traitées par les modèles |
+| 令牌 | Jeton | Token | Identifiants d'accès API |
+| token | token | token | Unités de texte traitées par les modèles |
 | 渠道 | Canal | Channel | Canal d'accès aux fournisseurs d'API |
 | 分组 | Groupe | Group | Classification des utilisateurs ou des jetons |
 | 额度 | Quota | Quota | Quota de services disponible pour l'utilisateur |
