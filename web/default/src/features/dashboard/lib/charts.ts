@@ -109,6 +109,7 @@ export function processChartData(
     Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
   const formatQuotaValue = (value: number) => renderQuotaCompat(value, 4)
   const formatQuotaTotal = (value: number) => renderQuotaCompat(value, 2)
+  const formatTokenValue = (value: number) => formatTokens(value)
 
   const MAX_TOOLTIP_MODELS = 15
   const isOtherTooltipKey = (key: string) =>
@@ -116,8 +117,12 @@ export function processChartData(
 
   const makeTooltipDimensionUpdateContent = (options?: {
     collapseOverflow?: boolean
+    rawField?: 'rawQuota' | 'rawTokens'
+    formatValue?: (value: number) => string
   }) => {
     const collapseOverflow = options?.collapseOverflow ?? true
+    const rawField = options?.rawField ?? 'rawQuota'
+    const formatValue = options?.formatValue ?? formatQuotaValue
 
     return (array: TooltipLineItem[]) => {
       const modelItems = array.filter((item) => !isOtherTooltipKey(item.key))
@@ -135,7 +140,7 @@ export function processChartData(
           sum =
             Number((array[i].datum as Record<string, unknown>)?.TimeSum) || sum
         }
-        array[i].value = formatQuotaValue(v)
+        array[i].value = formatValue(v)
       }
 
       if (collapseOverflow && array.length > MAX_TOOLTIP_MODELS) {
@@ -145,7 +150,7 @@ export function processChartData(
           ...otherItems,
         ].reduce((sum, item) => {
           const raw = item.datum
-            ? Number((item.datum as Record<string, unknown>)?.rawQuota) || 0
+            ? Number((item.datum as Record<string, unknown>)?.[rawField]) || 0
             : 0
           return sum + raw
         }, 0)
@@ -153,7 +158,7 @@ export function processChartData(
           ...visible,
           {
             key: otherLabel,
-            value: formatQuotaValue(otherSum),
+            value: formatValue(otherSum),
             hasShape: true,
             shapeType: 'square',
             shapeFill: otherTooltipColor,
@@ -165,7 +170,7 @@ export function processChartData(
 
       array.unshift({
         key: tt('Total:'),
-        value: formatQuotaValue(sum),
+        value: formatValue(sum),
       })
       return array
     }
@@ -212,6 +217,24 @@ export function processChartData(
         stack: true,
         legends: { visible: true, selectMode: 'single' },
       },
+      spec_token_line: {
+        type: 'bar',
+        data: [{ id: 'tokenBarData', values: [] }],
+        xField: 'Time',
+        yField: 'rawTokens',
+        seriesField: 'Model',
+        stack: true,
+        legends: { visible: true, selectMode: 'single' },
+      },
+      spec_token_area: {
+        type: 'area',
+        data: [{ id: 'tokenAreaData', values: [] }],
+        xField: 'Time',
+        yField: 'rawTokens',
+        seriesField: 'Model',
+        stack: true,
+        legends: { visible: true, selectMode: 'single' },
+      },
       spec_model_line: {
         type: 'area',
         data: [{ id: 'lineData', values: [] }],
@@ -237,6 +260,7 @@ export function processChartData(
         },
       },
       totalQuotaDisplay: formatQuotaTotal(0),
+      totalTokensDisplay: formatTokenValue(0),
       totalCountDisplay: formatInt(0),
     }
   }
@@ -335,6 +359,10 @@ export function processChartData(
     (sum, x) => sum + (Number(x.quota) || 0),
     0
   )
+  const totalTokensRaw = Array.from(modelTotalsMap.values()).reduce(
+    (sum, x) => sum + (Number(x.tokens) || 0),
+    0
+  )
 
   // Pie chart (model call count proportion)
   const pieValues = Array.from(modelTotalsMap.entries())
@@ -375,6 +403,32 @@ export function processChartData(
     lineValues.push(...timeData)
   })
   lineValues.sort((a, b) => a.Time.localeCompare(b.Time))
+
+  const tokenLineValues: Array<{
+    Time: string
+    Model: string
+    rawTokens: number
+    TimeSum: number
+  }> = []
+
+  chartTimes.forEach((time) => {
+    let timeData = sortedModels.map((model) => {
+      const stats = timeModelMap.get(time)?.get(model)
+      const rawTokens = Number(stats?.tokens) || 0
+      return {
+        Time: time,
+        Model: model,
+        rawTokens,
+        TimeSum: 0,
+      }
+    })
+
+    const timeSum = timeData.reduce((sum, item) => sum + item.rawTokens, 0)
+    timeData.sort((a, b) => b.rawTokens - a.rawTokens)
+    timeData = timeData.map((item) => ({ ...item, TimeSum: timeSum }))
+    tokenLineValues.push(...timeData)
+  })
+  tokenLineValues.sort((a, b) => a.Time.localeCompare(b.Time))
 
   // Area chart: top models by quota + "Other" bucket (too many series = unreadable)
   const MAX_AREA_MODELS = 15
@@ -417,6 +471,42 @@ export function processChartData(
     }
   })
   areaValues.sort((a, b) => a.Time.localeCompare(b.Time))
+
+  const rankedTokenModels = Array.from(modelTotalsMap.entries())
+    .map(([model, stats]) => ({
+      Model: model,
+      Tokens: Number(stats.tokens) || 0,
+    }))
+    .sort((a, b) => b.Tokens - a.Tokens)
+  const topTokenAreaModels = new Set(
+    rankedTokenModels.slice(0, MAX_AREA_MODELS).map((m) => m.Model)
+  )
+
+  const tokenAreaValues: typeof tokenLineValues = []
+  chartTimes.forEach((time) => {
+    const buckets = new Map<string, { rawTokens: number }>()
+    const modelMap = timeModelMap.get(time)
+    let timeSum = 0
+    sortedModels.forEach((model) => {
+      const stats = modelMap?.get(model)
+      const rawTokens = Number(stats?.tokens) || 0
+      timeSum += rawTokens
+      const key = topTokenAreaModels.has(model) ? model : otherLabel
+      const prev = buckets.get(key) || { rawTokens: 0 }
+      buckets.set(key, {
+        rawTokens: prev.rawTokens + rawTokens,
+      })
+    })
+    for (const [model, vals] of buckets) {
+      tokenAreaValues.push({
+        Time: time,
+        Model: model,
+        rawTokens: vals.rawTokens,
+        TimeSum: timeSum,
+      })
+    }
+  })
+  tokenAreaValues.sort((a, b) => a.Time.localeCompare(b.Time))
 
   // Line chart: model call trend (top models + "Other" bucket)
   const MAX_TREND_MODELS = 20
@@ -606,6 +696,117 @@ export function processChartData(
       background: { fill: 'transparent' },
       animation: true,
     },
+    spec_token_line: {
+      type: 'bar',
+      data: [{ id: 'tokenBarData', values: tokenLineValues }],
+      xField: 'Time',
+      yField: 'rawTokens',
+      seriesField: 'Model',
+      stack: true,
+      legends: { visible: true, selectMode: 'single' },
+      color: modelColor,
+      bar: {
+        state: {
+          hover: { stroke: '#000', lineWidth: 1 },
+        },
+      },
+      axes: [
+        { orient: 'bottom', type: 'band' },
+        {
+          orient: 'left',
+          type: 'linear',
+          label: {
+            formatMethod: (value: number) => formatTokenValue(value),
+          },
+        },
+      ],
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatTokenValue(Number(datum?.rawTokens) || 0),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                Number(datum?.rawTokens) || 0,
+            },
+          ],
+          updateContent: makeTooltipDimensionUpdateContent({
+            rawField: 'rawTokens',
+            formatValue: formatTokenValue,
+          }),
+        },
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_token_area: {
+      type: 'area',
+      data: [{ id: 'tokenAreaData', values: tokenAreaValues }],
+      xField: 'Time',
+      yField: 'rawTokens',
+      seriesField: 'Model',
+      stack: false,
+      legends: { visible: true, selectMode: 'single' },
+      color: modelColor,
+      axes: [
+        { orient: 'bottom', type: 'band' },
+        {
+          orient: 'left',
+          type: 'linear',
+          label: {
+            formatMethod: (value: number) => formatTokenValue(value),
+          },
+        },
+      ],
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatTokenValue(Number(datum?.rawTokens) || 0),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                Number(datum?.rawTokens) || 0,
+            },
+          ],
+          updateContent: makeTooltipDimensionUpdateContent({
+            collapseOverflow: false,
+            rawField: 'rawTokens',
+            formatValue: formatTokenValue,
+          }),
+        },
+      },
+      area: {
+        style: {
+          fillOpacity: 0.08,
+          curveType: 'monotone',
+        },
+      },
+      line: {
+        style: {
+          lineWidth: 2,
+          curveType: 'monotone',
+        },
+      },
+      point: { visible: false },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
     spec_model_line: {
       type: 'area',
       data: [{ id: 'lineData', values: modelLineValues }],
@@ -716,6 +917,7 @@ export function processChartData(
       animation: true,
     },
     totalQuotaDisplay: formatQuotaTotal(totalQuotaRaw),
+    totalTokensDisplay: formatTokenValue(totalTokensRaw),
     totalCountDisplay: formatInt(totalTimes),
   }
 }

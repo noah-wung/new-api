@@ -206,6 +206,23 @@ export function UserCharts() {
           </TabsList>
         </Tabs>
 
+        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
+          {USER_METRIC_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type='button'
+              onClick={() => setUserMetric(opt.value)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                userMetric === opt.value
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {t(opt.labelKey)}
+            </button>
+          ))}
+        </div>
+
         <Tabs
           value={String(topUserLimit)}
           onValueChange={(value) => setTopUserLimit(Number(value))}
@@ -226,23 +243,6 @@ export function UserCharts() {
             ))}
           </TabsList>
         </Tabs>
-
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          {USER_METRIC_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type='button'
-              onClick={() => setUserMetric(opt.value)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                userMetric === opt.value
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t(opt.labelKey)}
-            </button>
-          ))}
-        </div>
 
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />

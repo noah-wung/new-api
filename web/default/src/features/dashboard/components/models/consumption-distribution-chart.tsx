@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { VChart } from '@visactor/react-vchart'
-import { AreaChart, BarChart3, WalletCards } from 'lucide-react'
+import { AreaChart, BarChart3, Layers, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
@@ -44,6 +44,7 @@ interface ConsumptionDistributionChartProps {
   loading?: boolean
   timeGranularity?: TimeGranularity
   defaultChartType?: ConsumptionDistributionChartType
+  metric?: 'quota' | 'tokens'
 }
 
 const CHART_TYPE_ICONS: Record<
@@ -72,6 +73,7 @@ export function ConsumptionDistributionChart(
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
+  const metric = props.metric ?? 'quota'
 
   useEffect(() => {
     if (props.defaultChartType) setChartType(props.defaultChartType)
@@ -114,9 +116,26 @@ export function ConsumptionDistributionChart(
       chartRadius,
     ]
   )
-  const spec = chartType === 'bar' ? chartData.spec_line : chartData.spec_area
+  const spec =
+    metric === 'tokens'
+      ? chartType === 'bar'
+        ? chartData.spec_token_line
+        : chartData.spec_token_area
+      : chartType === 'bar'
+        ? chartData.spec_line
+        : chartData.spec_area
+  const Icon = metric === 'tokens' ? Layers : WalletCards
+  const title =
+    metric === 'tokens'
+      ? t('Token Usage Distribution')
+      : t('Quota Distribution')
+  const totalDisplay =
+    metric === 'tokens'
+      ? chartData.totalTokensDisplay
+      : chartData.totalQuotaDisplay
   const specType = typeof spec?.type === 'string' ? spec.type : chartType
   const chartKey = [
+    metric,
     chartType,
     specType,
     props.loading ? 'loading' : 'ready',
@@ -129,10 +148,10 @@ export function ConsumptionDistributionChart(
     <div className='overflow-hidden rounded-lg border'>
       <div className='flex w-full flex-col gap-1.5 border-b px-3 py-2 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
-          <WalletCards className='text-muted-foreground/60 size-4' />
-          <div className='text-sm font-semibold'>{t('Quota Distribution')}</div>
+          <Icon className='text-muted-foreground/60 size-4' />
+          <div className='text-sm font-semibold'>{title}</div>
           <span className='text-muted-foreground text-xs'>
-            {t('Total:')} {chartData.totalQuotaDisplay}
+            {t('Total:')} {totalDisplay}
           </span>
         </div>
 

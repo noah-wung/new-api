@@ -268,6 +268,7 @@ export function Dashboard() {
                   <LazyConsumptionDistributionChart
                     data={modelData}
                     loading={dataLoading}
+                    metric='tokens'
                     defaultChartType={
                       chartPreferences.consumptionDistributionChart
                     }
@@ -278,6 +279,20 @@ export function Dashboard() {
                 </Suspense>
               </FadeIn>
               <FadeIn delay={0.15}>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyConsumptionDistributionChart
+                    data={modelData}
+                    loading={dataLoading}
+                    defaultChartType={
+                      chartPreferences.consumptionDistributionChart
+                    }
+                    timeGranularity={
+                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+                    }
+                  />
+                </Suspense>
+              </FadeIn>
+              <FadeIn delay={0.2}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyModelCharts
                     data={modelData}
