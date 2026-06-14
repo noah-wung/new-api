@@ -254,6 +254,13 @@ export function UserCharts() {
           const spec = chartData[chart.specKey]
           const titleKey =
             userMetric === 'tokens' ? chart.tokensLabelKey : chart.labelKey
+          const isRank = chart.value === 'rank'
+          const actualCount =
+            isRank
+              ? (spec as { data?: Array<{ values?: unknown[] }> })?.data?.[0]
+                  ?.values?.length ?? 0
+              : 0
+          const rankHeight = actualCount * 32 + 50
 
           return (
             <div
@@ -265,7 +272,14 @@ export function UserCharts() {
                 <div className='text-sm font-semibold'>{t(titleKey)}</div>
               </div>
 
-              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
+              <div
+                className='p-1.5 sm:p-2'
+                style={
+                  isRank && actualCount > 0
+                    ? { height: `${rankHeight}px` }
+                    : undefined
+                }
+              >
                 {isLoading ? (
                   <Skeleton className='h-full w-full' />
                 ) : (

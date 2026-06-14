@@ -976,7 +976,7 @@ export function processUserChartData(
       seriesField: 'User',
       direction: 'horizontal',
       title: {
-        visible: true,
+        visible: false,
         text: rankTitle,
         subtext: tt('No data available'),
       },
@@ -1005,8 +1005,13 @@ export function processUserChartData(
   if (!data || data.length === 0) return emptyResult
 
   const userTotalMap = new Map<string, number>()
+  const userDisplayNameMap = new Map<string, string>()
   data.forEach((item) => {
     const username = item.username || 'unknown'
+    const displayName = item.display_name || username
+    if (!userDisplayNameMap.has(username)) {
+      userDisplayNameMap.set(username, displayName)
+    }
     const prev = userTotalMap.get(username) || 0
     const value = isTokens
       ? Number(item.token_used) || 0
@@ -1020,7 +1025,7 @@ export function processUserChartData(
   const totalValue = sorted.slice(0, limit).reduce((s, [, q]) => s + q, 0)
 
   const rankValues = sorted.slice(0, limit).map(([username, value]) => ({
-    User: username,
+    User: userDisplayNameMap.get(username) || username,
     rawQuota: isTokens ? 0 : value,
     rawTokens: isTokens ? value : 0,
     Usage: isTokens ? 0 : Number((value / quotaPerUnit).toFixed(4)),
@@ -1028,7 +1033,7 @@ export function processUserChartData(
 
   const userColorMap = topUsers.reduce<Record<string, string>>(
     (acc, user, i) => {
-      acc[user] = userColorRange[i % userColorRange.length]
+      acc[userDisplayNameMap.get(user) || user] = userColorRange[i % userColorRange.length]
       return acc
     },
     {}
@@ -1042,6 +1047,10 @@ export function processUserChartData(
     const timeKey = formatChartTime(ts, timeGranularity)
     allTimePoints.add(timeKey)
     const user = item.username || 'unknown'
+    const displayName = item.display_name || user
+    if (!userDisplayNameMap.has(user)) {
+      userDisplayNameMap.set(user, displayName)
+    }
     if (!topUserSet.has(user)) return
     if (!timeUserMap.has(timeKey)) timeUserMap.set(timeKey, new Map())
     const map = timeUserMap.get(timeKey)!
@@ -1065,7 +1074,7 @@ export function processUserChartData(
       const v = timeUserMap.get(time)?.get(user) || 0
       trendValues.push({
         Time: time,
-        User: user,
+        User: userDisplayNameMap.get(user) || user,
         rawQuota: isTokens ? 0 : v,
         rawTokens: isTokens ? v : 0,
         Usage: isTokens ? 0 : Number((v / quotaPerUnit).toFixed(4)),
@@ -1083,8 +1092,9 @@ export function processUserChartData(
       yField: 'User',
       seriesField: 'User',
       direction: 'horizontal',
+      padding: { top: 10, right: 10, bottom: 10, left: 10 },
       title: {
-        visible: true,
+        visible: false,
         text: rankTitle,
         subtext: `${tt('Total:')} ${formatVal(totalValue)}`,
       },
@@ -1099,7 +1109,7 @@ export function processUserChartData(
         style: { fontSize: 11 },
       },
       axes: [
-        { orient: 'left', type: 'band', label: { autoHide: false } },
+        { orient: 'left', type: 'band', bandSize: 28, label: { autoHide: false } },
         { orient: 'bottom', type: 'linear', visible: false },
       ],
       tooltip: {
