@@ -126,6 +126,9 @@ func main() {
 	// External usage detail retention cleanup
 	service.StartExternalUsageRetentionTask()
 
+	// Persistent system maintenance task runner
+	service.StartSystemTaskRunner()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)
