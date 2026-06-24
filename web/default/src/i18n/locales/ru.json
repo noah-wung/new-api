@@ -1260,6 +1260,7 @@
     "Drawing logs": "Журналы рисования",
     "Drawing Logs": "Журнал рисования",
     "Drawing task records": "Записи задач рисования",
+    "Drawing task polling": "Опрос задач рисования",
     "Duplicate": "Дублировать",
     "Duplicate group names: {{names}}": "Повторяющиеся имена групп: {{names}}",
     "Duplicate source model mappings are not allowed": "Повторяющиеся сопоставления исходных моделей не допускаются",

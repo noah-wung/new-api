@@ -1260,6 +1260,7 @@
     "Drawing logs": "描画ログ",
     "Drawing Logs": "画像生成履歴",
     "Drawing task records": "描画タスク記録",
+    "Drawing task polling": "描画タスクのポーリング",
     "Duplicate": "複製",
     "Duplicate group names: {{names}}": "重複するグループ名: {{names}}",
     "Duplicate source model mappings are not allowed": "重複したソースモデルのマッピングは許可されていません",
