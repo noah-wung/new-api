@@ -4978,6 +4978,25 @@
     "Tasks currently pending or running.": "Tâches actuellement en attente ou en cours d’exécution.",
     "Upgrade plaintext SMTP connection with STARTTLS before authentication": "Mettre à niveau la connexion SMTP en clair avec STARTTLS avant l'authentification",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "Tâche de détection des modèles en amont démarrée. Suivez la progression dans Infos système, puis actualisez pour examiner les mises à jour en attente.",
-    "We could not load system tasks.": "Impossible de charger les tâches système."
+    "We could not load system tasks.": "Impossible de charger les tâches système.",
+    "Configure NODE_NAME": "Configurer NODE_NAME",
+    "CPU": "Processeur",
+    "Free": "Libre",
+    "Instances": "Instances",
+    "Master instances run scheduled background tasks.": "Les instances master exécutent les tâches planifiées en arrière-plan.",
+    "Memory": "Mémoire",
+    "No instances have reported yet.": "Aucune instance ne s’est encore signalée.",
+    "Node role": "Rôle du nœud",
+    "Nodes reporting from this deployment and their latest heartbeat.": "Nœuds signalés par ce déploiement et leur dernier battement de cœur.",
+    "online": "en ligne",
+    "Resources": "Ressources",
+    "Runtime": "Environnement",
+    "stale": "expiré",
+    "Started": "Démarré",
+    "Storage": "Stockage",
+    "Use a different stable value for each instance, then restart the service.": "Utilisez une valeur stable différente pour chaque instance, puis redémarrez le service.",
+    "Version": "Version",
+    "We could not load instances.": "Impossible de charger les instances.",
+    "Worker instances do not run master-only background tasks.": "Les instances worker n’exécutent pas les tâches d’arrière-plan réservées au master."
   }
 }

@@ -4978,6 +4978,25 @@
     "Tasks currently pending or running.": "Các tác vụ hiện đang chờ hoặc đang chạy.",
     "Upgrade plaintext SMTP connection with STARTTLS before authentication": "Nâng cấp kết nối SMTP dạng rõ bằng STARTTLS trước khi xác thực",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "Đã bắt đầu tác vụ phát hiện mô hình thượng nguồn. Theo dõi tiến trình trong Thông tin hệ thống, sau đó làm mới để xem các cập nhật đang chờ.",
-    "We could not load system tasks.": "Không thể tải tác vụ hệ thống."
+    "We could not load system tasks.": "Không thể tải tác vụ hệ thống.",
+    "Configure NODE_NAME": "Cấu hình NODE_NAME",
+    "CPU": "CPU",
+    "Free": "Trống",
+    "Instances": "Phiên bản",
+    "Master instances run scheduled background tasks.": "Phiên bản master chạy các tác vụ nền theo lịch.",
+    "Memory": "Bộ nhớ",
+    "No instances have reported yet.": "Chưa có phiên bản nào báo cáo.",
+    "Node role": "Vai trò node",
+    "Nodes reporting from this deployment and their latest heartbeat.": "Các node đang báo cáo từ bản triển khai này và nhịp tim mới nhất của chúng.",
+    "online": "trực tuyến",
+    "Resources": "Tài nguyên",
+    "Runtime": "Môi trường chạy",
+    "stale": "mất kết nối",
+    "Started": "Đã khởi động",
+    "Storage": "Lưu trữ",
+    "Use a different stable value for each instance, then restart the service.": "Dùng một giá trị ổn định khác nhau cho mỗi phiên bản, sau đó khởi động lại dịch vụ.",
+    "Version": "Phiên bản",
+    "We could not load instances.": "Không thể tải danh sách phiên bản.",
+    "Worker instances do not run master-only background tasks.": "Phiên bản worker không chạy các tác vụ nền chỉ dành cho master."
   }
 }

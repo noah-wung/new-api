@@ -4978,6 +4978,25 @@
     "Tasks currently pending or running.": "当前等待中或运行中的任务。",
     "Upgrade plaintext SMTP connection with STARTTLS before authentication": "在身份验证前使用 STARTTLS 升级明文 SMTP 连接",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "上游模型检测任务已开始。可在「系统信息」中查看进度，完成后刷新以查看待处理的更新。",
-    "We could not load system tasks.": "无法加载系统任务。"
+    "We could not load system tasks.": "无法加载系统任务。",
+    "Configure NODE_NAME": "配置 NODE_NAME",
+    "CPU": "CPU",
+    "Free": "可用",
+    "Instances": "实例",
+    "Master instances run scheduled background tasks.": "master 实例执行定时后台任务。",
+    "Memory": "内存",
+    "No instances have reported yet.": "暂无实例上报。",
+    "Node role": "节点职责",
+    "Nodes reporting from this deployment and their latest heartbeat.": "当前部署中上报的节点及其最新心跳。",
+    "online": "在线",
+    "Resources": "资源",
+    "Runtime": "运行环境",
+    "stale": "失联",
+    "Started": "启动时间",
+    "Storage": "存储",
+    "Use a different stable value for each instance, then restart the service.": "每个实例使用不同且稳定的值，然后重启服务。",
+    "Version": "版本",
+    "We could not load instances.": "无法加载实例信息。",
+    "Worker instances do not run master-only background tasks.": "worker 实例不执行仅限 master 的后台任务。"
   }
 }

@@ -4978,6 +4978,25 @@
     "Tasks currently pending or running.": "現在待機中または実行中のタスクです。",
     "Upgrade plaintext SMTP connection with STARTTLS before authentication": "認証前に STARTTLS で平文の SMTP 接続を暗号化する",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "上流モデル検出タスクを開始しました。システム情報で進捗を確認し、完了後に更新してステージングされた変更をご確認ください。",
-    "We could not load system tasks.": "システムタスクを読み込めませんでした。"
+    "We could not load system tasks.": "システムタスクを読み込めませんでした。",
+    "Configure NODE_NAME": "NODE_NAME を設定",
+    "CPU": "CPU",
+    "Free": "空き",
+    "Instances": "インスタンス",
+    "Master instances run scheduled background tasks.": "master インスタンスはスケジュールされたバックグラウンドタスクを実行します。",
+    "Memory": "メモリ",
+    "No instances have reported yet.": "まだ報告されたインスタンスはありません。",
+    "Node role": "ノードの役割",
+    "Nodes reporting from this deployment and their latest heartbeat.": "このデプロイから報告されたノードと最新のハートビート。",
+    "online": "オンライン",
+    "Resources": "リソース",
+    "Runtime": "実行環境",
+    "stale": "期限切れ",
+    "Started": "起動時刻",
+    "Storage": "ストレージ",
+    "Use a different stable value for each instance, then restart the service.": "インスタンスごとに異なる安定した値を使用し、その後サービスを再起動してください。",
+    "Version": "バージョン",
+    "We could not load instances.": "インスタンス情報を読み込めませんでした。",
+    "Worker instances do not run master-only background tasks.": "worker インスタンスは master 専用のバックグラウンドタスクを実行しません。"
   }
 }

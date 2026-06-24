@@ -4978,6 +4978,25 @@
     "Tasks currently pending or running.": "Задачи, которые ожидают выполнения или выполняются сейчас.",
     "Upgrade plaintext SMTP connection with STARTTLS before authentication": "Перед аутентификацией повысить открытое SMTP-соединение до STARTTLS",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "Задача обнаружения моделей вышестоящего источника запущена. Следите за ходом в разделе «Информация о системе», затем обновите, чтобы просмотреть подготовленные изменения.",
-    "We could not load system tasks.": "Не удалось загрузить системные задачи."
+    "We could not load system tasks.": "Не удалось загрузить системные задачи.",
+    "Configure NODE_NAME": "Настроить NODE_NAME",
+    "CPU": "ЦП",
+    "Free": "Свободно",
+    "Instances": "Экземпляры",
+    "Master instances run scheduled background tasks.": "Экземпляры master выполняют плановые фоновые задачи.",
+    "Memory": "Память",
+    "No instances have reported yet.": "Экземпляры еще не отправляли данные.",
+    "Node role": "Роль узла",
+    "Nodes reporting from this deployment and their latest heartbeat.": "Узлы этого развертывания и их последнее сердцебиение.",
+    "online": "онлайн",
+    "Resources": "Ресурсы",
+    "Runtime": "Среда выполнения",
+    "stale": "устарел",
+    "Started": "Запущен",
+    "Storage": "Хранилище",
+    "Use a different stable value for each instance, then restart the service.": "Используйте разные стабильные значения для каждого экземпляра, затем перезапустите сервис.",
+    "Version": "Версия",
+    "We could not load instances.": "Не удалось загрузить экземпляры.",
+    "Worker instances do not run master-only background tasks.": "Экземпляры worker не выполняют фоновые задачи только для master."
   }
 }

@@ -4978,6 +4978,25 @@
     "Tasks currently pending or running.": "Tasks currently pending or running.",
     "Upgrade plaintext SMTP connection with STARTTLS before authentication": "Upgrade plaintext SMTP connection with STARTTLS before authentication",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.",
-    "We could not load system tasks.": "We could not load system tasks."
+    "We could not load system tasks.": "We could not load system tasks.",
+    "Configure NODE_NAME": "Configure NODE_NAME",
+    "CPU": "CPU",
+    "Free": "Free",
+    "Instances": "Instances",
+    "Master instances run scheduled background tasks.": "Master instances run scheduled background tasks.",
+    "Memory": "Memory",
+    "No instances have reported yet.": "No instances have reported yet.",
+    "Node role": "Node role",
+    "Nodes reporting from this deployment and their latest heartbeat.": "Nodes reporting from this deployment and their latest heartbeat.",
+    "online": "online",
+    "Resources": "Resources",
+    "Runtime": "Runtime",
+    "stale": "stale",
+    "Started": "Started",
+    "Storage": "Storage",
+    "Use a different stable value for each instance, then restart the service.": "Use a different stable value for each instance, then restart the service.",
+    "Version": "Version",
+    "We could not load instances.": "We could not load instances.",
+    "Worker instances do not run master-only background tasks.": "Worker instances do not run master-only background tasks."
   }
 }

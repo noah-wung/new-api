@@ -289,6 +289,7 @@ func migrateDB() error {
 		&ExternalUsageClientEvent{},
 		&ExternalUsageAggregate{},
 		&ExternalUsageModelMapping{},
+		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},
 	)
@@ -348,6 +349,7 @@ func migrateDBFast() error {
 		{&ExternalUsageClientEvent{}, "ExternalUsageClientEvent"},
 		{&ExternalUsageAggregate{}, "ExternalUsageAggregate"},
 		{&ExternalUsageModelMapping{}, "ExternalUsageModelMapping"},
+		{&SystemInstance{}, "SystemInstance"},
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
 	}
