@@ -282,6 +282,7 @@ type RecordTaskBillingLogParams struct {
 	TokenId   int
 	Group     string
 	Other     map[string]interface{}
+	NodeName  string // 任务发起节点；为空时回退当前节点
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
@@ -312,6 +313,11 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
+	}
+	if params.LogType == LogTypeConsume && common.DataExportEnabled {
+		gopool.Go(func() {
+			LogQuotaData(params.UserId, username, params.ModelName, params.Quota, common.GetTimestamp(), 0)
+		})
 	}
 }
 
