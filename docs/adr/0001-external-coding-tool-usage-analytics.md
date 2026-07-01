@@ -1,0 +1,3 @@
+# Record external coding tool usage as separate analytics facts
+
+External coding tool usage is statistical token usage, not gateway quota consumption. We record Cursor imports and client-reported usage as separate auditable fact sources, normalize client cache snapshots into usage deltas before upload, and aggregate them into source-aware analytics plus compatible total token aggregates. We do not reuse gateway consume logs, user quota fields, request counts, RPM/TPM, or billing settlement paths because those represent gateway-handled requests and quota accounting, while external tool usage has different provenance, privacy, deduplication, rollback, and reporting semantics.

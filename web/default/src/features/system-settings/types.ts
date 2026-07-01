@@ -274,6 +274,11 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  'external_usage_setting.enabled': boolean
+  'external_usage_setting.max_devices_per_user': number
+  'external_usage_setting.detail_retention_days': number
+  'external_usage_setting.accept_window_days': number
+  'external_usage_setting.allowed_sources': string[]
   ChannelDisableThreshold: string
   QuotaRemindThreshold: string
   AutomaticDisableChannelEnabled: boolean

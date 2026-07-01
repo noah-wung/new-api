@@ -281,6 +281,14 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&ExternalUsageDevice{},
+		&ExternalUsageInstallToken{},
+		&ExternalUsageCursorImportBatch{},
+		&ExternalUsageCursorEvent{},
+		&ExternalUsageReportBatch{},
+		&ExternalUsageClientEvent{},
+		&ExternalUsageAggregate{},
+		&ExternalUsageModelMapping{},
 	)
 	if err != nil {
 		return err
@@ -330,6 +338,14 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+		{&ExternalUsageDevice{}, "ExternalUsageDevice"},
+		{&ExternalUsageInstallToken{}, "ExternalUsageInstallToken"},
+		{&ExternalUsageCursorImportBatch{}, "ExternalUsageCursorImportBatch"},
+		{&ExternalUsageCursorEvent{}, "ExternalUsageCursorEvent"},
+		{&ExternalUsageReportBatch{}, "ExternalUsageReportBatch"},
+		{&ExternalUsageClientEvent{}, "ExternalUsageClientEvent"},
+		{&ExternalUsageAggregate{}, "ExternalUsageAggregate"},
+		{&ExternalUsageModelMapping{}, "ExternalUsageModelMapping"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

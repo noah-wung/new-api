@@ -36,6 +36,10 @@ RUN go mod download
 COPY . .
 COPY --from=builder /build/web/default/dist ./web/default/dist
 COPY --from=builder-classic /build/web/classic/dist ./web/classic/dist
+RUN mkdir -p /build/reporter-binaries/darwin-arm64 /build/reporter-binaries/darwin-amd64 /build/reporter-binaries/windows-amd64 && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w" -o /build/reporter-binaries/darwin-arm64/usage-reporter ./cmd/usage-reporter && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o /build/reporter-binaries/darwin-amd64/usage-reporter ./cmd/usage-reporter && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o /build/reporter-binaries/windows-amd64/usage-reporter.exe ./cmd/usage-reporter
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
@@ -46,6 +50,7 @@ RUN apt-get update \
     && update-ca-certificates
 
 COPY --from=builder2 /build/new-api /
+COPY --from=builder2 /build/reporter-binaries /reporter-binaries
 COPY LICENSE NOTICE THIRD-PARTY-LICENSES.md /licenses/
 EXPOSE 3000
 WORKDIR /data

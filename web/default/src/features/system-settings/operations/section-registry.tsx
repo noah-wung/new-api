@@ -23,6 +23,7 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
+import { ExternalUsageSettingsSection } from './external-usage-settings-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -37,6 +38,26 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'external-usage',
+    titleKey: 'External Usage',
+    build: (settings: OperationsSettings) => (
+      <ExternalUsageSettingsSection
+        defaultValues={{
+          'external_usage_setting.enabled':
+            settings['external_usage_setting.enabled'] ?? false,
+          'external_usage_setting.max_devices_per_user':
+            settings['external_usage_setting.max_devices_per_user'] ?? 3,
+          'external_usage_setting.detail_retention_days':
+            settings['external_usage_setting.detail_retention_days'] ?? 180,
+          'external_usage_setting.accept_window_days':
+            settings['external_usage_setting.accept_window_days'] ?? 90,
+          'external_usage_setting.allowed_sources':
+            settings['external_usage_setting.allowed_sources'] ?? ['codex'],
         }}
       />
     ),

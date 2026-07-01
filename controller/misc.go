@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
+	"github.com/QuantumNous/new-api/setting/external_usage_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -40,7 +41,7 @@ func TestStatus(c *gin.Context) {
 }
 
 func GetStatus(c *gin.Context) {
-
+	externalUsageSetting := external_usage_setting.GetSetting()
 	cs := console_setting.GetConsoleSetting()
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
@@ -73,24 +74,29 @@ func GetStatus(c *gin.Context) {
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
-		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
-		"quota_display_type":            operation_setting.GetQuotaDisplayType(),
-		"custom_currency_symbol":        operation_setting.GetGeneralSetting().CustomCurrencySymbol,
-		"custom_currency_exchange_rate": operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate,
-		"enable_batch_update":           common.BatchUpdateEnabled,
-		"enable_drawing":                common.DrawingEnabled,
-		"enable_task":                   common.TaskEnabled,
-		"enable_data_export":            common.DataExportEnabled,
-		"data_export_default_time":      common.DataExportDefaultTime,
-		"default_collapse_sidebar":      common.DefaultCollapseSidebar,
-		"mj_notify_enabled":             setting.MjNotifyEnabled,
-		"chats":                         setting.Chats,
-		"demo_site_enabled":             operation_setting.DemoSiteEnabled,
-		"self_use_mode_enabled":         operation_setting.SelfUseModeEnabled,
-		"register_enabled":              common.RegisterEnabled,
-		"password_login_enabled":        common.PasswordLoginEnabled,
-		"password_register_enabled":     common.PasswordRegisterEnabled,
-		"default_use_auto_group":        setting.DefaultUseAutoGroup,
+		"display_in_currency":                  operation_setting.IsCurrencyDisplay(),
+		"quota_display_type":                   operation_setting.GetQuotaDisplayType(),
+		"custom_currency_symbol":               operation_setting.GetGeneralSetting().CustomCurrencySymbol,
+		"custom_currency_exchange_rate":        operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate,
+		"enable_batch_update":                  common.BatchUpdateEnabled,
+		"enable_drawing":                       common.DrawingEnabled,
+		"enable_task":                          common.TaskEnabled,
+		"enable_data_export":                   common.DataExportEnabled,
+		"external_usage_enabled":               externalUsageSetting.Enabled,
+		"external_usage_allowed_sources":       externalUsageSetting.AllowedSources,
+		"external_usage_max_devices_per_user":  externalUsageSetting.MaxDevicesPerUser,
+		"external_usage_detail_retention_days": externalUsageSetting.DetailRetentionDays,
+		"external_usage_accept_window_days":    externalUsageSetting.AcceptWindowDays,
+		"data_export_default_time":             common.DataExportDefaultTime,
+		"default_collapse_sidebar":             common.DefaultCollapseSidebar,
+		"mj_notify_enabled":                    setting.MjNotifyEnabled,
+		"chats":                                setting.Chats,
+		"demo_site_enabled":                    operation_setting.DemoSiteEnabled,
+		"self_use_mode_enabled":                operation_setting.SelfUseModeEnabled,
+		"register_enabled":                     common.RegisterEnabled,
+		"password_login_enabled":               common.PasswordLoginEnabled,
+		"password_register_enabled":            common.PasswordRegisterEnabled,
+		"default_use_auto_group":               setting.DefaultUseAutoGroup,
 
 		"usd_exchange_rate": operation_setting.USDExchangeRate,
 		"price":             operation_setting.Price,

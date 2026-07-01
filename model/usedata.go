@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -106,6 +107,20 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
 	err = DB.Table("quota_data").Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).Find(&quotaDatas).Error
+	if err != nil {
+		return nil, err
+	}
+	var user User
+	userErr := DB.Select("id").Where("username = ?", username).First(&user).Error
+	if userErr == nil && user.Id > 0 {
+		externalRows, extErr := getExternalQuotaDataByUserID(user.Id, startTime, endTime)
+		if extErr != nil {
+			return nil, extErr
+		}
+		quotaDatas = mergeQuotaDataRows(quotaDatas, externalRows, func(item *QuotaData) string {
+			return item.ModelName + "-" + strconv.FormatInt(item.CreatedAt, 10)
+		})
+	}
 	return quotaDatas, err
 }
 
@@ -113,6 +128,16 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
 	err = DB.Table("quota_data").Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).Find(&quotaDatas).Error
+	if err != nil {
+		return nil, err
+	}
+	externalRows, extErr := getExternalQuotaDataByUserID(userId, startTime, endTime)
+	if extErr != nil {
+		return nil, extErr
+	}
+	quotaDatas = mergeQuotaDataRows(quotaDatas, externalRows, func(item *QuotaData) string {
+		return item.ModelName + "-" + strconv.FormatInt(item.CreatedAt, 10)
+	})
 	return quotaDatas, err
 }
 
@@ -124,6 +149,16 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 		Where("quota_data.created_at >= ? and quota_data.created_at <= ?", startTime, endTime).
 		Group("quota_data.username, users.display_name, quota_data.created_at").
 		Find(&quotaDatas).Error
+	if err != nil {
+		return nil, err
+	}
+	externalRows, extErr := getExternalQuotaDataGroupByUser(startTime, endTime)
+	if extErr != nil {
+		return nil, extErr
+	}
+	quotaDatas = mergeQuotaDataRows(quotaDatas, externalRows, func(item *QuotaData) string {
+		return item.Username + "-" + strconv.FormatInt(item.CreatedAt, 10)
+	})
 	return quotaDatas, err
 }
 
@@ -136,5 +171,15 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	// only select model_name, sum(count) as count, sum(quota) as quota, model_name, created_at from quota_data group by model_name, created_at;
 	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
+	if err != nil {
+		return nil, err
+	}
+	externalRows, extErr := getExternalQuotaDataAll(startTime, endTime)
+	if extErr != nil {
+		return nil, extErr
+	}
+	quotaDatas = mergeQuotaDataRows(quotaDatas, externalRows, func(item *QuotaData) string {
+		return item.ModelName + "-" + strconv.FormatInt(item.CreatedAt, 10)
+	})
 	return quotaDatas, err
 }

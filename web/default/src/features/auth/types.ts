@@ -114,6 +114,11 @@ export interface SystemStatus {
     turnstile_site_key?: string
     email_verification?: boolean
     self_use_mode_enabled?: boolean
+    external_usage_enabled?: boolean
+    external_usage_allowed_sources?: string[]
+    external_usage_max_devices_per_user?: number
+    external_usage_detail_retention_days?: number
+    external_usage_accept_window_days?: number
     display_in_currency?: boolean
     display_token_stat_enabled?: boolean
     quota_per_unit?: number
@@ -157,6 +162,11 @@ export interface SystemStatus {
   turnstile_site_key?: string
   email_verification?: boolean
   self_use_mode_enabled?: boolean
+  external_usage_enabled?: boolean
+  external_usage_allowed_sources?: string[]
+  external_usage_max_devices_per_user?: number
+  external_usage_detail_retention_days?: number
+  external_usage_accept_window_days?: number
   display_in_currency?: boolean
   display_token_stat_enabled?: boolean
   quota_per_unit?: number

@@ -2,7 +2,7 @@
 
 - Date: 2026-06-27
 - Status: Approved for planning
-- Scope: Replace the current `Usage Reporter Setup` experience with a one-click Codex installer command flow for macOS and Windows
+- Scope: Replace the current `Usage Reporter Setup` experience with a one-click Codex installer command flow for macOS and Windows, including both Apple Silicon and Intel macOS builds
 
 ## 1. Background
 
@@ -27,9 +27,10 @@ The flow must work both for local development and for server deployments under a
 1. Remove the standalone `Usage Reporter Setup` card from the `External Usage` page.
 2. Replace it with a guided Codex installer entry that produces one executable command per platform.
 3. Support macOS and Windows in the first release.
-4. Serve installer scripts from the current `new-api` service so the generated command automatically matches the deployment origin.
-5. Keep the existing external usage reporting model, aggregate model, and device visibility model intact.
-6. Ensure reinstall and upgrade do not create duplicate usage statistics.
+4. Support both Apple Silicon and Intel macOS machines in the first release.
+5. Serve installer scripts from the current `new-api` service so the generated command automatically matches the deployment origin.
+6. Keep the existing external usage reporting model, aggregate model, and device visibility model intact.
+7. Ensure reinstall and upgrade do not create duplicate usage statistics.
 
 ## 3. Non-Goals
 
@@ -229,14 +230,23 @@ The scripts share the same logical phases.
 
 1. validate runtime prerequisites
 2. create local install directory
-3. download the correct `usage-reporter` binary
+3. detect platform architecture and download the correct `usage-reporter` binary
 4. exchange install token for durable config
 5. write local config and persistent device metadata
 6. run one immediate incremental upload
 7. register recurring background execution
 8. print a human-readable summary
 
-### 8.2 Local Paths
+### 8.2 macOS Architecture Support
+
+The macOS installer must support both:
+
+- Apple Silicon (`arm64`)
+- Intel (`amd64` / `x86_64`)
+
+The shell installer detects architecture at runtime using `uname -m` and selects the correct reporter binary artifact. The first release must ship distinct binaries for both macOS architectures rather than relying on Rosetta or a universal binary requirement.
+
+### 8.3 Local Paths
 
 macOS:
 
@@ -252,7 +262,7 @@ Windows:
 - config: `%USERPROFILE%\.new-api-usage-reporter\config.json`
 - state: `%USERPROFILE%\.new-api-usage-reporter\state.json`
 
-### 8.3 Reporter Invocation Model
+### 8.4 Reporter Invocation Model
 
 The background task must call the reporter with a config-driven invocation model rather than a long parameter list embedded entirely in the scheduler definition. This reduces secret sprawl and makes upgrades easier.
 
@@ -439,6 +449,7 @@ Add:
 - exchange endpoint for token-to-device-config activation
 - platform-specific script rendering support
 - binary distribution endpoint or static binary serving path under current service origin
+- distinct macOS reporter artifacts for `darwin-arm64` and `darwin-amd64`
 
 Reuse:
 
@@ -469,6 +480,8 @@ At minimum, render tests for:
 
 - shell script contains correct origin and exchange endpoints
 - PowerShell script contains correct origin and exchange endpoints
+- shell script selects `darwin-arm64` on Apple Silicon
+- shell script selects `darwin-amd64` on Intel macOS
 - reinstall path preserves state file
 - scheduled task definitions target the correct binary and config locations
 
@@ -476,6 +489,8 @@ At minimum, render tests for:
 
 - generate installer command as normal user
 - execute install flow on macOS
+- execute install flow on Apple Silicon macOS
+- execute install flow on Intel macOS
 - execute install flow on Windows
 - verify first successful incremental upload
 - verify recurring scheduler registration
@@ -491,6 +506,7 @@ The following decisions are fixed by this document:
 
 - platform UX uses explicit switch, not auto-detection only
 - scripts are served by the current `new-api` service
+- macOS binary selection is architecture-aware for Apple Silicon and Intel
 - install flow performs immediate incremental upload and background task registration
 - displayed command uses short-lived install token, not durable reporting credential
 - reinstall preserves state and must not duplicate usage statistics

@@ -293,6 +293,42 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		externalUsageRoute := apiRouter.Group("/external-usage")
+		{
+			externalUsageRoute.POST("/report", middleware.CriticalRateLimit(), controller.ReportExternalUsage)
+			externalUsageRoute.POST("/self/codex-installer/exchange", controller.ExchangeExternalUsageSelfCodexInstallerToken)
+			externalUsageRoute.GET("/reporter/:script", controller.GetExternalUsageReporterInstallScript)
+			externalUsageRoute.GET("/reporter/binary/:target/:name", controller.GetExternalUsageReporterBinary)
+
+			externalUsageSelfRoute := externalUsageRoute.Group("/self")
+			externalUsageSelfRoute.Use(middleware.UserAuth())
+			{
+				externalUsageSelfRoute.POST("/codex-installer-command", controller.CreateExternalUsageSelfCodexInstallerCommand)
+				externalUsageSelfRoute.GET("/overview", controller.GetExternalUsageOverview)
+				externalUsageSelfRoute.GET("/devices", controller.ListExternalUsageDevices)
+				externalUsageSelfRoute.POST("/devices", controller.CreateExternalUsageDeviceCredential)
+				externalUsageSelfRoute.DELETE("/devices/:id", controller.RevokeExternalUsageDevice)
+				externalUsageSelfRoute.GET("/cursor-import-batches", controller.ListExternalUsageCursorImportBatches)
+				externalUsageSelfRoute.GET("/report-batches", controller.ListExternalUsageReportBatches)
+			}
+
+			externalUsageAdminRoute := externalUsageRoute.Group("/admin")
+			externalUsageAdminRoute.Use(middleware.AdminAuth())
+			{
+				externalUsageAdminRoute.GET("/cursor-import-batches", controller.ListExternalUsageCursorImportBatches)
+				externalUsageAdminRoute.GET("/report-batches", controller.ListExternalUsageReportBatches)
+				externalUsageAdminRoute.GET("/details", controller.ListExternalUsageDetails)
+				externalUsageAdminRoute.GET("/model-mappings", controller.ListExternalUsageModelMappings)
+				externalUsageAdminRoute.POST("/cursor-import", controller.ImportExternalUsageCursorCSV)
+				externalUsageAdminRoute.POST("/model-mappings", controller.UpsertExternalUsageModelMapping)
+				externalUsageAdminRoute.DELETE("/model-mappings/:id", controller.DeleteExternalUsageModelMapping)
+				externalUsageAdminRoute.DELETE("/cursor-import-batches/:id", controller.DeleteExternalUsageCursorImportBatch)
+				externalUsageAdminRoute.POST("/cursor-import-batches/:id/replay", controller.ReplayExternalUsageCursorImportBatch)
+				externalUsageAdminRoute.POST("/aggregates/rebuild", controller.RebuildExternalUsageAggregates)
+				externalUsageAdminRoute.POST("/model-data/delete", controller.DeleteExternalUsageModelData)
+			}
+		}
+
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{

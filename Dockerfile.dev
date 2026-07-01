@@ -20,6 +20,11 @@ RUN mkdir -p web/default/dist web/classic/dist && \
     echo '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/default/dist/index.html && \
     echo '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/classic/dist/index.html
 
+RUN mkdir -p /build/reporter-binaries/darwin-arm64 /build/reporter-binaries/darwin-amd64 /build/reporter-binaries/windows-amd64 && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w" -o /build/reporter-binaries/darwin-arm64/usage-reporter ./cmd/usage-reporter && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o /build/reporter-binaries/darwin-amd64/usage-reporter ./cmd/usage-reporter && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o /build/reporter-binaries/windows-amd64/usage-reporter.exe ./cmd/usage-reporter
+
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM debian:bookworm-slim
@@ -30,6 +35,7 @@ RUN apt-get update \
     && update-ca-certificates
 
 COPY --from=builder /build/new-api /
+COPY --from=builder /build/reporter-binaries /reporter-binaries
 COPY LICENSE NOTICE THIRD-PARTY-LICENSES.md /licenses/
 EXPOSE 3000
 WORKDIR /data

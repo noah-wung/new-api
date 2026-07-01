@@ -28,7 +28,14 @@ func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal,
 		Order("total_tokens DESC")
 	query = applyRankingQuotaTimeRange(query, startTime, endTime)
 	err := query.Find(&rows).Error
-	return rows, err
+	if err != nil {
+		return nil, err
+	}
+	externalRows, err := getExternalRankingQuotaTotals(startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	return mergeRankingQuotaTotals(rows, externalRows), nil
 }
 
 func GetRankingQuotaBuckets(startTime int64, endTime int64, bucketSize int64) ([]RankingQuotaBucket, error) {
@@ -45,7 +52,14 @@ func GetRankingQuotaBuckets(startTime int64, endTime int64, bucketSize int64) ([
 		Order("bucket ASC")
 	query = applyRankingQuotaTimeRange(query, startTime, endTime)
 	err := query.Find(&rows).Error
-	return rows, err
+	if err != nil {
+		return nil, err
+	}
+	externalRows, err := getExternalRankingQuotaBuckets(startTime, endTime, bucketSize)
+	if err != nil {
+		return nil, err
+	}
+	return mergeRankingQuotaBuckets(rows, externalRows), nil
 }
 
 func rankingBucketExpr(bucketSize int64) string {
