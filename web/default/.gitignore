@@ -14,6 +14,9 @@ dist-ssr
 
 .env
 
+# i18n tooling reports (output of `bun run i18n:sync`)
+src/i18n/locales/_reports/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
