@@ -182,7 +182,7 @@ export function ExternalUsageSettingsSection({
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
-            saveLabel='Save external usage settings'
+            saveLabel={t('Save external usage settings')}
           />
           <FormField
             control={form.control}
@@ -269,7 +269,7 @@ export function ExternalUsageSettingsSection({
                 <FormControl>
                   <Textarea
                     rows={5}
-                    placeholder={t('codex\nzcode\nminimax_code')}
+                    placeholder={'codex\nzcode\nminimax_code'}
                     {...field}
                   />
                 </FormControl>
