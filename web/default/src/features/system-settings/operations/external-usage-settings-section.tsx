@@ -43,25 +43,51 @@ import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 
+/**
+ * IMPORTANT: react-hook-form 7 interprets dotted `name` strings as nested
+ * paths. If we declare the schema with literal flat keys like
+ * `'external_usage_setting.enabled'`, the form state diverges from what zod
+ * validates and saves silently turn into no-ops. So we model the form
+ * internally with a proper nested object and only flatten back to the
+ * server-side key format right before persisting.
+ */
 const schema = z.object({
-  'external_usage_setting.enabled': z.boolean(),
-  'external_usage_setting.max_devices_per_user': z.coerce.number().int().min(1).max(3),
-  'external_usage_setting.detail_retention_days': z.coerce.number().int().min(0).max(3650),
-  'external_usage_setting.accept_window_days': z.coerce.number().int().min(0).max(3650),
+  external_usage_setting: z.object({
+    enabled: z.boolean(),
+    max_devices_per_user: z.coerce.number().int().min(1).max(3),
+    detail_retention_days: z.coerce.number().int().min(0).max(3650),
+    accept_window_days: z.coerce.number().int().min(0).max(3650),
+  }),
   allowed_sources_text: z.string(),
 })
 
 type ExternalUsageSettingsFormValues = z.infer<typeof schema>
 
-type ExternalUsageSettingsSectionProps = {
-  defaultValues: {
-    'external_usage_setting.enabled': boolean
-    'external_usage_setting.max_devices_per_user': number
-    'external_usage_setting.detail_retention_days': number
-    'external_usage_setting.accept_window_days': number
-    'external_usage_setting.allowed_sources': string[]
-  }
+type FlatExternalUsageDefaults = {
+  'external_usage_setting.enabled': boolean
+  'external_usage_setting.max_devices_per_user': number
+  'external_usage_setting.detail_retention_days': number
+  'external_usage_setting.accept_window_days': number
+  'external_usage_setting.allowed_sources': string[]
 }
+
+type ExternalUsageSettingsSectionProps = {
+  defaultValues: FlatExternalUsageDefaults
+}
+
+const buildFormDefaults = (
+  defaults: FlatExternalUsageDefaults
+): ExternalUsageSettingsFormValues => ({
+  external_usage_setting: {
+    enabled: defaults['external_usage_setting.enabled'],
+    max_devices_per_user: defaults['external_usage_setting.max_devices_per_user'],
+    detail_retention_days:
+      defaults['external_usage_setting.detail_retention_days'],
+    accept_window_days: defaults['external_usage_setting.accept_window_days'],
+  },
+  allowed_sources_text:
+    defaults['external_usage_setting.allowed_sources'].join('\n'),
+})
 
 function normalizeAllowedSources(value: string) {
   const seen = new Set<string>()
@@ -83,32 +109,10 @@ export function ExternalUsageSettingsSection({
 
   const form = useForm<ExternalUsageSettingsFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      'external_usage_setting.enabled':
-        defaultValues['external_usage_setting.enabled'],
-      'external_usage_setting.max_devices_per_user':
-        defaultValues['external_usage_setting.max_devices_per_user'],
-      'external_usage_setting.detail_retention_days':
-        defaultValues['external_usage_setting.detail_retention_days'],
-      'external_usage_setting.accept_window_days':
-        defaultValues['external_usage_setting.accept_window_days'],
-      allowed_sources_text:
-        defaultValues['external_usage_setting.allowed_sources'].join('\n'),
-    },
+    defaultValues: buildFormDefaults(defaultValues),
   })
 
-  useResetForm(form, {
-    'external_usage_setting.enabled':
-      defaultValues['external_usage_setting.enabled'],
-    'external_usage_setting.max_devices_per_user':
-      defaultValues['external_usage_setting.max_devices_per_user'],
-    'external_usage_setting.detail_retention_days':
-      defaultValues['external_usage_setting.detail_retention_days'],
-    'external_usage_setting.accept_window_days':
-      defaultValues['external_usage_setting.accept_window_days'],
-    allowed_sources_text:
-      defaultValues['external_usage_setting.allowed_sources'].join('\n'),
-  })
+  useResetForm(form, buildFormDefaults(defaultValues))
 
   const onSubmit = async (values: ExternalUsageSettingsFormValues) => {
     const normalizedAllowedSources = normalizeAllowedSources(
@@ -121,42 +125,42 @@ export function ExternalUsageSettingsSection({
     const updates: Array<{ key: string; value: string | boolean | number }> = []
 
     if (
-      values['external_usage_setting.enabled'] !==
+      values.external_usage_setting.enabled !==
       defaultValues['external_usage_setting.enabled']
     ) {
       updates.push({
         key: 'external_usage_setting.enabled',
-        value: values['external_usage_setting.enabled'],
+        value: values.external_usage_setting.enabled,
       })
     }
 
     if (
-      values['external_usage_setting.max_devices_per_user'] !==
+      values.external_usage_setting.max_devices_per_user !==
       defaultValues['external_usage_setting.max_devices_per_user']
     ) {
       updates.push({
         key: 'external_usage_setting.max_devices_per_user',
-        value: values['external_usage_setting.max_devices_per_user'],
+        value: values.external_usage_setting.max_devices_per_user,
       })
     }
 
     if (
-      values['external_usage_setting.detail_retention_days'] !==
+      values.external_usage_setting.detail_retention_days !==
       defaultValues['external_usage_setting.detail_retention_days']
     ) {
       updates.push({
         key: 'external_usage_setting.detail_retention_days',
-        value: values['external_usage_setting.detail_retention_days'],
+        value: values.external_usage_setting.detail_retention_days,
       })
     }
 
     if (
-      values['external_usage_setting.accept_window_days'] !==
+      values.external_usage_setting.accept_window_days !==
       defaultValues['external_usage_setting.accept_window_days']
     ) {
       updates.push({
         key: 'external_usage_setting.accept_window_days',
-        value: values['external_usage_setting.accept_window_days'],
+        value: values.external_usage_setting.accept_window_days,
       })
     }
 

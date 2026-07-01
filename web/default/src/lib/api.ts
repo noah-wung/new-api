@@ -20,6 +20,7 @@ import axios, { type AxiosRequestConfig } from 'axios'
 import { t } from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { getRequestUserId } from './request-user-id'
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -128,14 +129,7 @@ api.interceptors.response.use(
  * Get user ID from localStorage
  */
 function getUserId(): string | null {
-  try {
-    if (typeof window !== 'undefined') {
-      return window.localStorage.getItem('uid')
-    }
-  } catch {
-    /* empty */
-  }
-  return null
+  return getRequestUserId()
 }
 
 /**
