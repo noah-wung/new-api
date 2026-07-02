@@ -61,6 +61,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { CopyButton } from '@/components/copy-button'
 import { Main } from '@/components/layout'
 import type { User } from '@/features/users/types'
@@ -1087,6 +1088,82 @@ export function ExternalUsage() {
           <div className='flex flex-col gap-6'>
             <Card>
               <CardHeader>
+                <CardTitle>{installerCommandCopy.title}</CardTitle>
+                <CardDescription>
+                  {installerCommandCopy.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='flex flex-col gap-4'>
+                {isAdmin && !canRequestInstallerCommand ? (
+                  <Alert>
+                    <AlertTitle>
+                      {installerCommandCopy.unavailableTitle}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {installerCommandCopy.unavailableDescription}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                <div className='grid gap-4'>
+                  <div className='grid gap-2'>
+                    <Label>{installerCommandCopy.platformLabel}</Label>
+                    <ToggleGroup
+                      variant='outline'
+                      value={[installerPlatform]}
+                      onValueChange={(groupValue) => {
+                        // Base UI passes an array even in single-select mode.
+                        const next = groupValue[groupValue.length - 1]
+                        if (next) {
+                          setInstallerPlatform(
+                            next as ExternalUsageInstallerPlatform
+                          )
+                        }
+                      }}
+                      aria-label={installerCommandCopy.platformLabel}
+                    >
+                      {installerCommandCopy.platformOptions.map((option) => (
+                        <ToggleGroupItem
+                          key={option.value}
+                          value={option.value}
+                          className='min-w-24 data-pressed:bg-primary data-pressed:text-primary-foreground data-pressed:border-primary'
+                        >
+                          {option.label}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  </div>
+                  <Button
+                    disabled={loading || !canRequestInstallerCommand}
+                    onClick={() => void handleCreateInstallerCommand()}
+                  >
+                    <HardDriveUpload />
+                    {installerCommandCopy.actionLabel}
+                  </Button>
+                </div>
+                {installerCommand ? (
+                  <div className='grid gap-4'>
+                    {installerCommandExpiresAt ? (
+                      <div className='text-muted-foreground text-sm'>
+                        {installerCommandCopy.expiresLabel}:{' '}
+                        {formatTimestamp(installerCommandExpiresAt)}
+                      </div>
+                    ) : null}
+                    <SetupCommandBlock
+                      title={installerCommandCopy.commandLabel}
+                      value={installerCommand}
+                      copiedLabel={t('Copied!')}
+                    />
+                  </div>
+                ) : (
+                  <p className='text-muted-foreground text-sm'>
+                    {installerCommandCopy.emptyState}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>{t('Usage Summary')}</CardTitle>
                 <CardDescription>
                   {t(
@@ -1315,78 +1392,6 @@ export function ExternalUsage() {
                     )}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>{installerCommandCopy.title}</CardTitle>
-                <CardDescription>
-                  {installerCommandCopy.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='flex flex-col gap-4'>
-                {isAdmin && !canRequestInstallerCommand ? (
-                  <Alert>
-                    <AlertTitle>
-                      {installerCommandCopy.unavailableTitle}
-                    </AlertTitle>
-                    <AlertDescription>
-                      {installerCommandCopy.unavailableDescription}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-                <div className='grid gap-3 md:grid-cols-[minmax(0,220px)_auto] md:items-end'>
-                  <div className='grid gap-2'>
-                    <Label htmlFor='installer-platform'>
-                      {installerCommandCopy.platformLabel}
-                    </Label>
-                    <NativeSelect
-                      id='installer-platform'
-                      value={installerPlatform}
-                      onChange={(e) =>
-                        setInstallerPlatform(
-                          e.target.value as ExternalUsageInstallerPlatform
-                        )
-                      }
-                    >
-                      {installerCommandCopy.platformOptions.map((option) => (
-                        <NativeSelectOption
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {option.label}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </div>
-                  <Button
-                    disabled={loading || !canRequestInstallerCommand}
-                    onClick={() => void handleCreateInstallerCommand()}
-                  >
-                    <HardDriveUpload />
-                    {installerCommandCopy.actionLabel}
-                  </Button>
-                </div>
-                {installerCommand ? (
-                  <div className='grid gap-4'>
-                    {installerCommandExpiresAt ? (
-                      <div className='text-muted-foreground text-sm'>
-                        {installerCommandCopy.expiresLabel}:{' '}
-                        {formatTimestamp(installerCommandExpiresAt)}
-                      </div>
-                    ) : null}
-                    <SetupCommandBlock
-                      title={installerCommandCopy.commandLabel}
-                      value={installerCommand}
-                      copiedLabel={t('Copied!')}
-                    />
-                  </div>
-                ) : (
-                  <p className='text-muted-foreground text-sm'>
-                    {installerCommandCopy.emptyState}
-                  </p>
-                )}
               </CardContent>
             </Card>
 
