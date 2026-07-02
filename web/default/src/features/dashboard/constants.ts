@@ -47,7 +47,8 @@ export const TIME_RANGE_PRESETS = [
   { label: '1 Day', days: 1 },
   { label: '7 Days', days: 7 },
   { label: '14 Days', days: 14 },
-  { label: '29 Days', days: 29 },
+  { label: '30 Days', days: 30 },
+  { label: '90 Days', days: 90 },
 ] as const
 
 export const CONSUMPTION_DISTRIBUTION_CHART_OPTIONS = [

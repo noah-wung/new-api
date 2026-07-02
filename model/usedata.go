@@ -126,8 +126,12 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 
 func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
-	// 从quota_data表中查询数据
-	err = DB.Table("quota_data").Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).Find(&quotaDatas).Error
+	// 从quota_data表中查询数据，按 model_name 和 created_at 聚合，减少传输到 Go 层的行数
+	err = DB.Table("quota_data").
+		Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").
+		Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).
+		Group("model_name, created_at").
+		Find(&quotaDatas).Error
 	if err != nil {
 		return nil, err
 	}
