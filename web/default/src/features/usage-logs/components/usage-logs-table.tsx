@@ -16,29 +16,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { type ColumnDef } from '@tanstack/react-table'
+import {
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-
-import {
-  DataTablePage,
-  DataTableRow,
-  useDataTable,
-} from '@/components/data-table'
-import { useMediaQuery } from '@/hooks'
+import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import { cn } from '@/lib/utils'
-
+import { TableCell, TableRow } from '@/components/ui/table'
+import { DataTablePage } from '@/components/data-table'
 import {
   DEFAULT_LOGS_DATA,
   LOG_TYPE_ALL_VALUE,
   LOG_TYPE_ENUM,
 } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
-import { parseLogOther } from '../lib/format'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
@@ -50,17 +54,6 @@ const route = getRouteApi('/_authenticated/usage-logs/$section')
 const logTypeRowTint: Record<number, string> = {
   [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',
   [LOG_TYPE_ENUM.REFUND]: 'bg-blue-50/30 dark:bg-blue-950/15',
-}
-
-// Warning tint for logs where a quota conversion saturated (admin-only marker).
-// Takes precedence over the per-type tint since it flags a billing anomaly.
-const quotaSaturationRowTint = 'bg-amber-50/60 dark:bg-amber-950/25'
-
-function getColumnVisibilityStorageKey(
-  logCategory: LogCategory,
-  isAdmin: boolean
-): string {
-  return `usage-logs:${logCategory}:${isAdmin ? 'admin' : 'user'}:column-visibility`
 }
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
@@ -156,23 +149,30 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const columns = useColumnsByCategory(logCategory, isAdmin)
   const isLoadingData = isLoading || (isFetching && !data)
 
-  const { table } = useDataTable({
+  const table = useReactTable({
     data: logs as Record<string, unknown>[],
     columns: columns as ColumnDef<Record<string, unknown>>[],
-    columnFilters,
-    columnVisibilityStorageKey: getColumnVisibilityStorageKey(
-      logCategory,
-      isAdmin
-    ),
-    pagination,
+    state: {
+      columnFilters,
+      pagination,
+    },
     enableRowSelection: false,
     onPaginationChange,
     onColumnFiltersChange,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
     manualPagination: true,
     manualFiltering: true,
-    totalCount: data?.total || 0,
-    ensurePageInRange,
+    pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
+
+  const pageCount = table.getPageCount()
+  useEffect(() => {
+    ensurePageInRange(pageCount)
+  }, [pageCount, ensurePageInRange])
 
   const isCommon = logCategory === 'common'
 
@@ -187,10 +187,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         'No usage logs available. Logs will appear here once API calls are made.'
       )}
       skeletonKeyPrefix='usage-log-skeleton'
-      applyHeaderSize
       tableClassName={cn(
+        'overflow-x-auto',
         '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
       )}
+      tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
       mobile={
         <UsageLogsMobileList
           table={table}
@@ -209,24 +210,17 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         const logType = (row.original as Record<string, unknown>).type as
           | number
           | undefined
-        let tintClass =
+        const tintClass =
           isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
-        if (isCommon && isAdmin) {
-          const other = parseLogOther(
-            ((row.original as Record<string, unknown>).other as string) ?? ''
-          )
-          if (other?.admin_info?.quota_saturation) {
-            tintClass = quotaSaturationRowTint
-          }
-        }
 
         return (
-          <DataTableRow
-            key={row.id}
-            row={row}
-            className={cn('transition-colors', tintClass)}
-            getColumnClassName={() => (isCommon ? 'py-2' : 'py-3.5')}
-          />
+          <TableRow key={row.id} className={cn('transition-colors', tintClass)}>
+            {row.getVisibleCells().map((cell) => (
+              <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              </TableCell>
+            ))}
+          </TableRow>
         )
       }}
     />

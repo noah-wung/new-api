@@ -64,3 +64,8 @@ export const DEFAULT_DISCOUNT_RATE = 1.0
  * Default minimum topup amount
  */
 export const DEFAULT_MIN_TOPUP = 1
+
+/**
+ * Quota conversion rate: 500,000 units = $1
+ */
+export const QUOTA_PER_DOLLAR = 500000
