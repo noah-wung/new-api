@@ -72,8 +72,8 @@ func TestBuildInstallScript_MacOSIncludesRealInstallFlow(t *testing.T) {
 			t.Fatalf("macOS install script missing %q", check)
 		}
 	}
-	if !strings.Contains(script, `"accept_window_days":90`) {
-		t.Fatal("expected macOS install script to persist accept_window_days in config.json")
+	if !strings.Contains(script, `"accept_window_days":$ACCEPT_WINDOW_DAYS`) {
+		t.Fatal("expected macOS install script to persist accept_window_days from the install script variable")
 	}
 }
 
@@ -123,8 +123,30 @@ func TestBuildInstallScript_WindowsIncludesRealInstallFlow(t *testing.T) {
 	if strings.Contains(script, "Set-Content -Path $ConfigPath -Value $Config -Encoding UTF8") {
 		t.Fatal("Windows install script should avoid PowerShell UTF-8 BOM config writes")
 	}
-	if !strings.Contains(script, `"accept_window_days": 90`) && !strings.Contains(script, `"accept_window_days":90`) {
-		t.Fatal("expected Windows install script to persist accept_window_days in config.json")
+	if !strings.Contains(script, "accept_window_days = $AcceptWindowDays") {
+		t.Fatal("expected Windows install script to persist accept_window_days from the install script variable")
+	}
+}
+
+func TestBuildInstallScript_WindowsSchedulesSilentBackgroundRunner(t *testing.T) {
+	script, err := BuildInstallScript(BuildInstallScriptParams{
+		Platform:         ExternalUsageInstallerPlatformWindows,
+		ServiceURL:       "https://example.com",
+		InstallToken:     "install-token-7",
+		AcceptWindowDays: 90,
+	})
+	if err != nil {
+		t.Fatalf("BuildInstallScript returned error: %v", err)
+	}
+
+	if !strings.Contains(script, "-WindowStyle Hidden") {
+		t.Fatal("expected Windows install script to schedule reporter with a hidden PowerShell window")
+	}
+	if !strings.Contains(script, `Join-Path $InstallRoot "run.ps1"`) {
+		t.Fatal("expected Windows install script to write a dedicated silent runner script")
+	}
+	if !strings.Contains(script, `*>> "$LogPath"`) {
+		t.Fatal("expected Windows install script to redirect scheduled reporter output to a log file")
 	}
 }
 

@@ -283,6 +283,8 @@ $AcceptWindowDays = %d
 $InstallRoot = Join-Path $env:USERPROFILE ".new-api-usage-reporter"
 $BinaryPath = Join-Path $InstallRoot "usage-reporter.exe"
 $ConfigPath = Join-Path $InstallRoot "config.json"
+$RunnerPath = Join-Path $InstallRoot "run.ps1"
+$LogPath = Join-Path $InstallRoot "scheduled-task.log"
 $StatePath = Join-Path $InstallRoot "state.json"
 $CodexDir = Join-Path $env:USERPROFILE ".codex\sessions"
 $TaskName = "new-api-usage-reporter-codex"
@@ -332,10 +334,15 @@ $Config = @{
 
 [System.IO.File]::WriteAllText($ConfigPath, $Config, (New-Object System.Text.UTF8Encoding($false)))
 
+$RunnerScript = @"
+& "$BinaryPath" --config "$ConfigPath" *>> "$LogPath"
+"@
+[System.IO.File]::WriteAllText($RunnerPath, $RunnerScript, (New-Object System.Text.UTF8Encoding($false)))
+
 & $BinaryPath --config $ConfigPath
 
 schtasks /Delete /TN $TaskName /F 2>$null | Out-Null
-$TaskCommand = ('"{0}" --config "{1}"' -f $BinaryPath, $ConfigPath)
+$TaskCommand = ('powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $RunnerPath)
 schtasks /Create /F /SC MINUTE /MO 5 /TN $TaskName /TR $TaskCommand | Out-Null
 
 Write-Host "Installed Codex usage reporting to $InstallRoot"
