@@ -126,8 +126,10 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 			common.SysLog("using PostgreSQL as database")
 			if !isLog {
 				common.UsingPostgreSQL = true
+				common.SetMainDatabaseType(common.DatabaseTypePostgreSQL)
 			} else {
 				common.LogSqlType = common.DatabaseTypePostgreSQL
+				common.SetLogDatabaseType(common.DatabaseTypePostgreSQL)
 			}
 			return gorm.Open(postgres.New(postgres.Config{
 				DSN:                  dsn,
@@ -140,8 +142,10 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 			common.SysLog("SQL_DSN not set, using SQLite as database")
 			if !isLog {
 				common.UsingSQLite = true
+				common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 			} else {
 				common.LogSqlType = common.DatabaseTypeSQLite
+				common.SetLogDatabaseType(common.DatabaseTypeSQLite)
 			}
 			return gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
 				PrepareStmt: true, // precompile SQL
@@ -159,8 +163,10 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 		}
 		if !isLog {
 			common.UsingMySQL = true
+			common.SetMainDatabaseType(common.DatabaseTypeMySQL)
 		} else {
 			common.LogSqlType = common.DatabaseTypeMySQL
+			common.SetLogDatabaseType(common.DatabaseTypeMySQL)
 		}
 		return gorm.Open(mysql.Open(dsn), &gorm.Config{
 			PrepareStmt: true, // precompile SQL
@@ -169,6 +175,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	// Use SQLite
 	common.SysLog("SQL_DSN not set, using SQLite as database")
 	common.UsingSQLite = true
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	return gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
 		PrepareStmt: true, // precompile SQL
 	})
