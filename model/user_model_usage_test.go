@@ -44,7 +44,7 @@ func setupUserModelUsageTestDB(t *testing.T) *gorm.DB {
 func TestGetUserModelUsageRows(t *testing.T) {
 	db := setupUserModelUsageTestDB(t)
 
-	user := User{Username: "usage-target", Password: "password"}
+	user := User{Username: "usage-target", Password: "password", Status: common.UserStatusDisabled}
 	require.NoError(t, db.Create(&user).Error)
 	require.NoError(t, db.Create(&[]QuotaData{
 		{UserID: user.Id, Username: user.Username, ModelName: "gpt-5", CreatedAt: 1717200000, TokenUsed: 100, Quota: 20, Count: 2},
@@ -63,6 +63,7 @@ func TestGetUserModelUsageRows(t *testing.T) {
 	target, err := GetUserModelUsageTarget(user.Id)
 	require.NoError(t, err)
 	require.True(t, target.DeletedAt.Valid)
+	require.Equal(t, common.UserStatusDisabled, target.Status)
 
 	gateway, err := GetGatewayUserModelUsageRows(user.Id, 1717190000, 1717210000)
 	require.NoError(t, err)

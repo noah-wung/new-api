@@ -22,7 +22,7 @@ type ExternalUserModelUsageRow struct {
 func GetUserModelUsageTarget(userID int) (*User, error) {
 	var user User
 	err := DB.Unscoped().
-		Select("id, username, display_name, deleted_at").
+		Select("id, username, display_name, status, deleted_at").
 		First(&user, "id = ?", userID).Error
 	return &user, err
 }
