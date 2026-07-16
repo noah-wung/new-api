@@ -65,4 +65,53 @@ describe('processUserChartData user identity', () => {
     assert.equal(datum.Username, 'alice')
     assert.equal(datum.User, 'Alice')
   })
+
+  test('keeps users with the same display name as separate chart identities', () => {
+    const result = processUserChartData(
+      [
+        {
+          user_id: 42,
+          username: 'alice',
+          display_name: 'Alex',
+          created_at: 1717200000,
+          quota: 100,
+        },
+        {
+          user_id: 84,
+          username: 'alex-admin',
+          display_name: 'Alex',
+          created_at: 1717200000,
+          quota: 200,
+        },
+      ],
+      'day'
+    )
+
+    const rankValues = result.spec_user_rank.data[0].values
+    const trendValues = result.spec_user_trend.data[0].values
+
+    assert.equal(result.spec_user_rank.yField, 'Username')
+    assert.equal(result.spec_user_rank.seriesField, 'Username')
+    assert.equal(result.spec_user_trend.seriesField, 'Username')
+    assert.deepEqual(
+      new Set(
+        rankValues.map((datum: Record<string, unknown>) => datum.Username)
+      ),
+      new Set(['alice', 'alex-admin'])
+    )
+    assert.deepEqual(
+      new Set(
+        trendValues.map((datum: Record<string, unknown>) => datum.Username)
+      ),
+      new Set(['alice', 'alex-admin'])
+    )
+    assert.deepEqual(
+      new Set(Object.keys(result.spec_user_rank.color.specified)),
+      new Set(['alice', 'alex-admin'])
+    )
+    assert.deepEqual(
+      new Set(Object.keys(result.spec_user_trend.color.specified)),
+      new Set(['alice', 'alex-admin'])
+    )
+  })
 })

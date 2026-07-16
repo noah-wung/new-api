@@ -36,11 +36,13 @@ export { processChartData, processUserChartData } from './charts'
 export { safeDivide, calculateDashboardStats } from './stats'
 export { getPreviewText } from './text'
 export {
+  changeUserAnalyticsMetric,
   createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
   decodeUsageSources,
   encodeUsageSources,
   getBrowserTimeZoneLabel,
+  initializeUserAnalyticsSearch,
   patchUserAnalyticsSearch,
   resolveUserAnalyticsRange,
   userAnalyticsSearchSchema,

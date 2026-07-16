@@ -17,7 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import z from 'zod'
-import type { UserAnalyticsSearch } from '../types'
+import type {
+  UserAnalyticsMetric,
+  UserAnalyticsSearch,
+  UserModelUsageSortField,
+} from '../types'
 
 export const USER_ANALYTICS_PRESET_DAYS = [1, 7, 14, 30, 90] as const
 
@@ -50,6 +54,8 @@ const rawUserAnalyticsSearchSchema = z.object({
   user_id: optionalPositiveInteger,
   start_timestamp: optionalPositiveInteger,
   end_timestamp: optionalPositiveInteger,
+  metric: z.enum(['quota', 'tokens']).optional().catch(undefined),
+  sort_mode: z.enum(['metric', 'manual']).optional().catch(undefined),
   sources: optionalSources,
   model_search: optionalNonEmptyString,
   sort_by: z
@@ -201,10 +207,43 @@ export function getBrowserTimeZoneLabel(
   }
 }
 
+function getMetricSortField(
+  metric: UserAnalyticsMetric
+): UserModelUsageSortField {
+  return metric === 'quota' ? 'quota' : 'token_usage'
+}
+
+export function initializeUserAnalyticsSearch(
+  current: UserAnalyticsSearch,
+  fallbackRange: UserAnalyticsRange
+): UserAnalyticsSearch {
+  const range = resolveUserAnalyticsRange(current, fallbackRange)
+  const metric = current.metric ?? 'quota'
+  const hasExplicitSort = current.sort_by != null || current.sort_order != null
+  const sortMode = current.sort_mode ?? (hasExplicitSort ? 'manual' : 'metric')
+  const metricSortField = getMetricSortField(metric)
+
+  return {
+    ...current,
+    ...range,
+    metric,
+    sort_mode: sortMode,
+    sort_by:
+      sortMode === 'metric'
+        ? metricSortField
+        : (current.sort_by ?? metricSortField),
+    sort_order: sortMode === 'metric' ? 'desc' : (current.sort_order ?? 'desc'),
+    p: current.p ?? 1,
+    page_size: current.page_size ?? 20,
+  }
+}
+
 const pageResetKeys = [
   'user_id',
   'start_timestamp',
   'end_timestamp',
+  'metric',
+  'sort_mode',
   'sources',
   'model_search',
   'sort_by',
@@ -230,4 +269,20 @@ export function patchUserAnalyticsSearch(
   const next = { ...current, ...normalizedPatch }
   if (resetPage) next.p = 1
   return next
+}
+
+export function changeUserAnalyticsMetric(
+  current: UserAnalyticsSearch,
+  metric: UserAnalyticsMetric
+): UserAnalyticsSearch {
+  if (current.sort_mode === 'manual') {
+    return { ...current, metric }
+  }
+
+  return patchUserAnalyticsSearch(current, {
+    metric,
+    sort_mode: 'metric',
+    sort_by: getMetricSortField(metric),
+    sort_order: 'desc',
+  })
 }

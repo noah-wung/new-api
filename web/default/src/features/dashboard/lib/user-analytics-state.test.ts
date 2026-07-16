@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
+  changeUserAnalyticsMetric,
   createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
   decodeUsageSources,
   encodeUsageSources,
   getBrowserTimeZoneLabel,
+  initializeUserAnalyticsSearch,
   patchUserAnalyticsSearch,
   resolveUserAnalyticsRange,
   userAnalyticsSearchSchema,
@@ -131,6 +133,8 @@ describe('user analytics URL state', () => {
       { user_id: 8 },
       { start_timestamp: 101 },
       { end_timestamp: 201 },
+      { metric: 'tokens' as const },
+      { sort_mode: 'manual' as const },
       { sources: 'codex' },
       { model_search: 'claude' },
       { sort_by: 'model_name' as const },
@@ -187,6 +191,8 @@ describe('user analytics URL state', () => {
         user_id: 7,
         start_timestamp: 100,
         end_timestamp: 200,
+        metric: 'tokens',
+        sort_mode: 'manual',
         sources: ' Gateway, codex, gateway ',
         model_search: ' gpt-5 ',
         sort_by: 'external_events',
@@ -198,6 +204,8 @@ describe('user analytics URL state', () => {
         user_id: 7,
         start_timestamp: 100,
         end_timestamp: 200,
+        metric: 'tokens',
+        sort_mode: 'manual',
         sources: 'gateway,codex',
         model_search: 'gpt-5',
         sort_by: 'external_events',
@@ -206,5 +214,57 @@ describe('user analytics URL state', () => {
         page_size: 100,
       }
     )
+  })
+
+  test('initializes and preserves metric-linked sorting across remounts', () => {
+    const initialized = initializeUserAnalyticsSearch(
+      {},
+      { start_timestamp: 100, end_timestamp: 200 }
+    )
+
+    assert.deepEqual(initialized, {
+      start_timestamp: 100,
+      end_timestamp: 200,
+      metric: 'quota',
+      sort_mode: 'metric',
+      sort_by: 'quota',
+      sort_order: 'desc',
+      p: 1,
+      page_size: 20,
+    })
+
+    const tokens = changeUserAnalyticsMetric(initialized, 'tokens')
+    assert.deepEqual(tokens, {
+      ...initialized,
+      metric: 'tokens',
+      sort_by: 'token_usage',
+      p: 1,
+    })
+
+    assert.deepEqual(
+      initializeUserAnalyticsSearch(tokens, {
+        start_timestamp: 300,
+        end_timestamp: 400,
+      }),
+      tokens
+    )
+  })
+
+  test('preserves explicit sorting when the primary metric changes', () => {
+    const current = {
+      start_timestamp: 100,
+      end_timestamp: 200,
+      metric: 'quota' as const,
+      sort_mode: 'manual' as const,
+      sort_by: 'model_name' as const,
+      sort_order: 'asc' as const,
+      p: 4,
+      page_size: 50 as const,
+    }
+
+    assert.deepEqual(changeUserAnalyticsMetric(current, 'tokens'), {
+      ...current,
+      metric: 'tokens',
+    })
   })
 })

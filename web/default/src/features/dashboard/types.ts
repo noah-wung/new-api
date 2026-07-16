@@ -76,7 +76,9 @@ export interface DashboardChartPreferences {
 // User Analytics Types
 // ============================================================================
 
-export type UserAnalyticsMetric = 'quota' | 'token_usage'
+export type UserAnalyticsMetric = 'quota' | 'tokens'
+
+export type UserAnalyticsSortMode = 'metric' | 'manual'
 
 export type UserModelUsageSortField =
   | 'model_name'
@@ -93,6 +95,8 @@ export interface UserAnalyticsSearch {
   user_id?: number
   start_timestamp?: number
   end_timestamp?: number
+  metric?: UserAnalyticsMetric
+  sort_mode?: UserAnalyticsSortMode
   sources?: string
   model_search?: string
   sort_by?: UserModelUsageSortField

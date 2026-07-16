@@ -30,7 +30,10 @@ import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import { processUserChartData } from '@/features/dashboard/lib'
-import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import type {
+  ProcessedUserChartData,
+  UserAnalyticsMetric,
+} from '@/features/dashboard/types'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -56,7 +59,7 @@ const USER_CHARTS: {
   },
 ]
 
-export type UserUsageMetric = 'quota' | 'tokens'
+export type UserUsageMetric = UserAnalyticsMetric
 
 interface UserChartsProps {
   timeRange: { start_timestamp: number; end_timestamp: number }

@@ -16,16 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import type { TimeGranularity } from '@/lib/time'
 import {
+  changeUserAnalyticsMetric,
   createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
   getBrowserTimeZoneLabel,
   getDefaultDays,
   getSavedGranularity,
+  initializeUserAnalyticsSearch,
   patchUserAnalyticsSearch,
   resolveUserAnalyticsRange,
   saveGranularity,
@@ -65,7 +67,7 @@ export function UserAnalytics() {
   const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>(
     initialState.granularity
   )
-  const [userMetric, setUserMetric] = useState<UserUsageMetric>('quota')
+  const userMetric: UserUsageMetric = search.metric ?? 'quota'
   const [topUserLimit, setTopUserLimit] = useState(10)
   const [selectedTarget, setSelectedTarget] = useState<UserModelUsageTarget>()
   const rangeKey = `${timeRange.start_timestamp}:${timeRange.end_timestamp}`
@@ -85,7 +87,6 @@ export function UserAnalytics() {
           error: undefined,
         }
   const [timeZoneLabel] = useState(() => getBrowserTimeZoneLabel())
-  const manualSort = useRef(Boolean(search.sort_by || search.sort_order))
 
   const updateSearch = useCallback(
     (patch: Partial<UserAnalyticsSearch>) => {
@@ -98,25 +99,18 @@ export function UserAnalytics() {
   )
 
   useEffect(() => {
-    const needsInitialization =
-      search.start_timestamp !== timeRange.start_timestamp ||
-      search.end_timestamp !== timeRange.end_timestamp ||
-      search.sort_by == null ||
-      search.sort_order == null ||
-      search.p == null ||
-      search.page_size == null
+    const initializedSearch = initializeUserAnalyticsSearch(
+      search,
+      initialState.range
+    )
+    const needsInitialization = Object.entries(initializedSearch).some(
+      ([key, value]) => search[key as keyof UserAnalyticsSearch] !== value
+    )
 
     if (!needsInitialization) return
 
-    updateSearch({
-      start_timestamp: timeRange.start_timestamp,
-      end_timestamp: timeRange.end_timestamp,
-      sort_by: search.sort_by ?? 'quota',
-      sort_order: search.sort_order ?? 'desc',
-      p: search.p ?? 1,
-      page_size: search.page_size ?? 20,
-    })
-  }, [search, timeRange, updateSearch])
+    updateSearch(initializedSearch)
+  }, [initialState.range, search, updateSearch])
 
   const activeSelectedTarget =
     selectedTarget?.id === search.user_id ? selectedTarget : undefined
@@ -196,15 +190,16 @@ export function UserAnalytics() {
 
   const handleMetricChange = useCallback(
     (metric: UserUsageMetric) => {
-      setUserMetric(metric)
-      if (!manualSort.current) {
-        updateSearch({
-          sort_by: metric === 'quota' ? 'quota' : 'token_usage',
-          sort_order: 'desc',
-        })
-      }
+      void navigate({
+        replace: true,
+        search: (current) =>
+          changeUserAnalyticsMetric(
+            initializeUserAnalyticsSearch(current, initialState.range),
+            metric
+          ),
+      })
     },
-    [updateSearch]
+    [initialState.range, navigate]
   )
 
   const handleUserSelect = useCallback(

@@ -972,8 +972,8 @@ export function processUserChartData(
       type: 'bar',
       data: [{ id: 'userRankData', values: [] }],
       xField: valueField,
-      yField: 'User',
-      seriesField: 'User',
+      yField: 'Username',
+      seriesField: 'Username',
       direction: 'horizontal',
       title: {
         visible: false,
@@ -989,7 +989,7 @@ export function processUserChartData(
       data: [{ id: 'userTrendData', values: [] }],
       xField: 'Time',
       yField: valueField,
-      seriesField: 'User',
+      seriesField: 'Username',
       title: {
         visible: true,
         text: trendTitle,
@@ -1039,8 +1039,7 @@ export function processUserChartData(
 
   const userColorMap = topUsers.reduce<Record<string, string>>(
     (acc, user, i) => {
-      acc[userDisplayNameMap.get(user) || user] =
-        userColorRange[i % userColorRange.length]
+      acc[user] = userColorRange[i % userColorRange.length]
       return acc
     },
     {}
@@ -1100,8 +1099,8 @@ export function processUserChartData(
       type: 'bar',
       data: [{ id: 'userRankData', values: rankValues }],
       xField: valueField,
-      yField: 'User',
-      seriesField: 'User',
+      yField: 'Username',
+      seriesField: 'Username',
       direction: 'horizontal',
       padding: { top: 10, right: 10, bottom: 10, left: 10 },
       title: {
@@ -1124,7 +1123,11 @@ export function processUserChartData(
           orient: 'left',
           type: 'band',
           bandSize: 28,
-          label: { autoHide: false },
+          label: {
+            autoHide: false,
+            formatMethod: (value: string, datum?: Record<string, unknown>) =>
+              String(datum?.User ?? userDisplayNameMap.get(value) ?? value),
+          },
         },
         { orient: 'bottom', type: 'linear', visible: false },
       ],
@@ -1163,14 +1166,23 @@ export function processUserChartData(
       data: [{ id: 'userTrendData', values: trendValues }],
       xField: 'Time',
       yField: valueField,
-      seriesField: 'User',
+      seriesField: 'Username',
       stack: false,
       title: {
         visible: true,
         text: trendTitle,
         subtext: `${tt('Total:')} ${formatVal(totalValue)}`,
       },
-      legends: { visible: true, selectMode: 'single' },
+      legends: {
+        visible: true,
+        selectMode: 'single',
+        item: {
+          label: {
+            formatMethod: (value: string | number) =>
+              userDisplayNameMap.get(String(value)) ?? String(value),
+          },
+        },
+      },
       axes: [
         { orient: 'bottom', type: 'band' },
         {
