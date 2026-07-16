@@ -5,7 +5,10 @@ import {
   encodeSelectedSources,
   resolveSelectedSources,
 } from './user-model-usage-summary'
-import { formatSourceMetric } from './user-model-usage-table'
+import {
+  formatSourceMetric,
+  SOURCE_TABLE_HEADER_KEYS,
+} from './user-model-usage-table'
 
 describe('user model usage summary helpers', () => {
   test('selects every available source when the URL parameter is absent', () => {
@@ -39,5 +42,15 @@ describe('user model usage summary helpers', () => {
 
   test('preserves a real zero source metric', () => {
     assert.equal(formatSourceMetric(0, String), '0')
+  })
+
+  test('defines every semantic column in the nested source table', () => {
+    assert.deepEqual(SOURCE_TABLE_HEADER_KEYS, [
+      'Source',
+      'Token usage',
+      'Quota',
+      'Gateway requests',
+      'External events',
+    ])
   })
 })

@@ -59,6 +59,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { StatusBadge } from '@/components/status-badge'
 import type {
   UserAnalyticsPageSize,
   UserModelUsageItem,
@@ -67,6 +68,15 @@ import type {
 } from '@/features/dashboard/types'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const SOURCE_TABLE_HEADER_KEYS = [
+  'Source',
+  'Token usage',
+  'Quota',
+  'Gateway requests',
+  'External events',
+] as const
 
 export interface UserModelUsageTableProps {
   items: UserModelUsageItem[]
@@ -157,7 +167,11 @@ export function UserModelUsageTable(props: UserModelUsageTableProps) {
               </CollapsibleTrigger>
               <span className='font-medium'>{modelName}</span>
               {item.unmapped && (
-                <Badge variant='outline'>{t('Unmapped')}</Badge>
+                <StatusBadge
+                  label={t('Unmapped')}
+                  variant='warning'
+                  copyable={false}
+                />
               )}
             </div>
           )
@@ -368,6 +382,7 @@ export function UserModelUsageTable(props: UserModelUsageTableProps) {
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
+                  scope='col'
                   aria-sort={
                     header.column.getIsSorted() === 'asc'
                       ? 'ascending'
@@ -422,16 +437,28 @@ export function UserModelUsageTable(props: UserModelUsageTableProps) {
                       model: modelName.toLocaleLowerCase(),
                     })}
                   >
+                    <TableHeader className='sr-only'>
+                      <TableRow>
+                        {SOURCE_TABLE_HEADER_KEYS.map((headerKey) => (
+                          <TableHead key={headerKey} scope='col'>
+                            {t(headerKey)}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
                     <TableBody>
                       {row.original.sources.map((source) => (
                         <TableRow
                           key={`${row.original.model_name}:${source.source}`}
                         >
-                          <TableCell className='w-1/5'>
+                          <TableHead
+                            scope='row'
+                            className='h-auto w-1/5 p-2 font-normal'
+                          >
                             <div className='flex items-center gap-2 pl-9'>
                               <Badge variant='secondary'>{source.source}</Badge>
                             </div>
-                          </TableCell>
+                          </TableHead>
                           <TableCell className='w-1/5'>
                             {formatSourceMetric(
                               source.token_usage,
@@ -480,7 +507,7 @@ export function UserModelUsageTable(props: UserModelUsageTableProps) {
                 }
               }}
             >
-              <SelectTrigger className='w-20'>
+              <SelectTrigger className='w-20' aria-label={t('Rows per page')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent side='top' alignItemWithTrigger={false}>
