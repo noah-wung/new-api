@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import type { QuotaDataItem, UptimeGroupResult } from './types'
+import type {
+  GetUserModelUsageParams,
+  QuotaDataItem,
+  UptimeGroupResult,
+  UserModelUsageApiResponse,
+} from './types'
 
 // ============================================================================
 // Dashboard APIs
@@ -60,6 +65,32 @@ export async function getUserQuotaDataByUsers(params: {
     message?: string
     data?: QuotaDataItem[]
   }>('/api/data/users', { params })
+  return res.data
+}
+
+export async function getUserModelUsage(
+  userId: number,
+  params: GetUserModelUsageParams
+): Promise<UserModelUsageApiResponse> {
+  const query = new URLSearchParams()
+  query.set('start_timestamp', String(params.start_timestamp))
+  query.set('end_timestamp', String(params.end_timestamp))
+  if (params.sources?.length) {
+    query.set('sources', params.sources.join(','))
+  }
+  if (params.model_search != null) {
+    query.set('model_search', params.model_search)
+  }
+  if (params.sort_by != null) query.set('sort_by', params.sort_by)
+  if (params.sort_order != null) query.set('sort_order', params.sort_order)
+  if (params.p != null) query.set('p', String(params.p))
+  if (params.page_size != null) {
+    query.set('page_size', String(params.page_size))
+  }
+
+  const res = await api.get<UserModelUsageApiResponse>(
+    `/api/data/users/${userId}/models?${query.toString()}`
+  )
   return res.data
 }
 

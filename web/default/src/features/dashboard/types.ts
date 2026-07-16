@@ -73,6 +73,103 @@ export interface DashboardChartPreferences {
 }
 
 // ============================================================================
+// User Analytics Types
+// ============================================================================
+
+export type UserAnalyticsMetric = 'quota' | 'token_usage'
+
+export type UserModelUsageSortField =
+  | 'model_name'
+  | 'token_usage'
+  | 'quota'
+  | 'gateway_requests'
+  | 'external_events'
+
+export type UserModelUsageSortOrder = 'asc' | 'desc'
+
+export type UserAnalyticsPageSize = 20 | 50 | 100
+
+export interface UserAnalyticsSearch {
+  user_id?: number
+  start_timestamp?: number
+  end_timestamp?: number
+  sources?: string
+  model_search?: string
+  sort_by?: UserModelUsageSortField
+  sort_order?: UserModelUsageSortOrder
+  p?: number
+  page_size?: UserAnalyticsPageSize
+}
+
+export interface GetUserModelUsageParams {
+  start_timestamp: number
+  end_timestamp: number
+  sources?: string[]
+  model_search?: string
+  sort_by?: UserModelUsageSortField
+  sort_order?: UserModelUsageSortOrder
+  p?: number
+  page_size?: UserAnalyticsPageSize
+}
+
+export interface UserModelUsageTarget {
+  id: number
+  username: string
+  display_name: string
+  status: number
+  deleted: boolean
+}
+
+export interface UserModelUsageTotals {
+  token_usage: number
+  quota: number
+  gateway_requests: number
+  external_events: number
+}
+
+export interface UserModelUsageSourceItem {
+  source: string
+  token_usage: number
+  quota: number | null
+  gateway_requests: number | null
+  external_events: number | null
+}
+
+export interface UserModelUsageItem {
+  model_name: string
+  unmapped: boolean
+  token_usage: number
+  quota: number
+  gateway_requests: number
+  external_events: number
+  sources: UserModelUsageSourceItem[]
+}
+
+export interface UserModelUsageCollectionStatus {
+  data_export_enabled: boolean
+  consume_log_enabled: boolean
+  external_usage_enabled: boolean
+  refresh_interval_minutes: number
+}
+
+export interface UserModelUsageResponse {
+  user: UserModelUsageTarget
+  available_sources: string[]
+  totals: UserModelUsageTotals
+  items: UserModelUsageItem[]
+  collection_status: UserModelUsageCollectionStatus
+  page: number
+  page_size: number
+  total: number
+}
+
+export interface UserModelUsageApiResponse {
+  success: boolean
+  message?: string
+  data?: UserModelUsageResponse
+}
+
+// ============================================================================
 // API Info Types
 // ============================================================================
 

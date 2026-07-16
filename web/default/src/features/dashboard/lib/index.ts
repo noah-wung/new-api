@@ -35,3 +35,19 @@ export {
 export { processChartData, processUserChartData } from './charts'
 export { safeDivide, calculateDashboardStats } from './stats'
 export { getPreviewText } from './text'
+export {
+  createBrowserLocalDayRange,
+  createUserAnalyticsPresetRange,
+  decodeUsageSources,
+  encodeUsageSources,
+  getBrowserTimeZoneLabel,
+  patchUserAnalyticsSearch,
+  resolveUserAnalyticsRange,
+  userAnalyticsSearchSchema,
+  MAX_USER_ANALYTICS_RANGE_SECONDS,
+  USER_ANALYTICS_PRESET_DAYS,
+} from './user-analytics-state'
+export type {
+  UserAnalyticsPresetDays,
+  UserAnalyticsRange,
+} from './user-analytics-state'

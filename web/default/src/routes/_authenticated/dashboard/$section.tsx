@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { Dashboard } from '@/features/dashboard'
+import { userAnalyticsSearchSchema } from '@/features/dashboard/lib'
 import {
   DASHBOARD_SECTION_IDS,
   DASHBOARD_DEFAULT_SECTION,
 } from '@/features/dashboard/section-registry'
 
 export const Route = createFileRoute('/_authenticated/dashboard/$section')({
+  validateSearch: userAnalyticsSearchSchema,
   beforeLoad: ({ params }) => {
     const validSections = DASHBOARD_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
