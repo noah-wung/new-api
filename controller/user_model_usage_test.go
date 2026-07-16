@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -238,6 +239,15 @@ func TestGetUserModelUsageRejectsInvalidPaginationAndSorting(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
 		})
 	}
+}
+
+func TestGetUserModelUsageRejectsPageOffsetOverflow(t *testing.T) {
+	setupUserModelUsageControllerTestDB(t)
+	maxInt := int(^uint(0) >> 1)
+	target := "/api/data/users/2/models?start_timestamp=1717190000&end_timestamp=1717210000&p=" + strconv.Itoa(maxInt) + "&page_size=100"
+
+	recorder := performUserModelUsageRequest(t, common.RoleRootUser, target)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
 func TestGetUserModelUsageAppliesSortAndPaginationDefaults(t *testing.T) {

@@ -122,6 +122,10 @@ func parseUserModelUsageQuery(c *gin.Context) (service.UserModelUsageQuery, erro
 	if _, ok := userModelUsagePageSizes[pageSize]; !ok {
 		return service.UserModelUsageQuery{}, errors.New("page_size must be one of 20, 50, or 100")
 	}
+	maxInt := int(^uint(0) >> 1)
+	if page-1 > maxInt/pageSize {
+		return service.UserModelUsageQuery{}, errors.New("page offset exceeds supported range")
+	}
 
 	sortBy := c.Query("sort_by")
 	if sortBy == "" {
