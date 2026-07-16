@@ -1006,11 +1006,15 @@ export function processUserChartData(
 
   const userTotalMap = new Map<string, number>()
   const userDisplayNameMap = new Map<string, string>()
+  const userIdMap = new Map<string, number>()
   data.forEach((item) => {
     const username = item.username || 'unknown'
     const displayName = item.display_name || username
     if (!userDisplayNameMap.has(username)) {
       userDisplayNameMap.set(username, displayName)
+    }
+    if (!userIdMap.has(username) && item.user_id != null) {
+      userIdMap.set(username, item.user_id)
     }
     const prev = userTotalMap.get(username) || 0
     const value = isTokens
@@ -1025,6 +1029,8 @@ export function processUserChartData(
   const totalValue = sorted.slice(0, limit).reduce((s, [, q]) => s + q, 0)
 
   const rankValues = sorted.slice(0, limit).map(([username, value]) => ({
+    UserID: userIdMap.get(username),
+    Username: username,
     User: userDisplayNameMap.get(username) || username,
     rawQuota: isTokens ? 0 : value,
     rawTokens: isTokens ? value : 0,
@@ -1033,7 +1039,8 @@ export function processUserChartData(
 
   const userColorMap = topUsers.reduce<Record<string, string>>(
     (acc, user, i) => {
-      acc[userDisplayNameMap.get(user) || user] = userColorRange[i % userColorRange.length]
+      acc[userDisplayNameMap.get(user) || user] =
+        userColorRange[i % userColorRange.length]
       return acc
     },
     {}
@@ -1063,6 +1070,8 @@ export function processUserChartData(
   const sortedTimePoints = Array.from(allTimePoints).sort()
   const trendValues: Array<{
     Time: string
+    UserID: number | undefined
+    Username: string
     User: string
     rawQuota: number
     rawTokens: number
@@ -1074,6 +1083,8 @@ export function processUserChartData(
       const v = timeUserMap.get(time)?.get(user) || 0
       trendValues.push({
         Time: time,
+        UserID: userIdMap.get(user),
+        Username: user,
         User: userDisplayNameMap.get(user) || user,
         rawQuota: isTokens ? 0 : v,
         rawTokens: isTokens ? v : 0,
@@ -1109,7 +1120,12 @@ export function processUserChartData(
         style: { fontSize: 11 },
       },
       axes: [
-        { orient: 'left', type: 'band', bandSize: 28, label: { autoHide: false } },
+        {
+          orient: 'left',
+          type: 'band',
+          bandSize: 28,
+          label: { autoHide: false },
+        },
         { orient: 'bottom', type: 'linear', visible: false },
       ],
       tooltip: {

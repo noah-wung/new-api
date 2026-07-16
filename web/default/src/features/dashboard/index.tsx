@@ -71,9 +71,9 @@ const LazyPerformanceOverview = lazy(() =>
   }))
 )
 
-const LazyUserCharts = lazy(() =>
-  import('./components/users/user-charts').then((m) => ({
-    default: m.UserCharts,
+const LazyUserAnalytics = lazy(() =>
+  import('./components/users/user-analytics').then((m) => ({
+    default: m.UserAnalytics,
   }))
 )
 
@@ -309,7 +309,7 @@ export function Dashboard() {
           {activeSection === 'users' && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
-                <LazyUserCharts />
+                <LazyUserAnalytics />
               </Suspense>
             </FadeIn>
           )}

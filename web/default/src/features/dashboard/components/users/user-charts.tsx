@@ -16,28 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { UserMultiple02Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { VChart } from '@visactor/react-vchart'
-import { Users, Loader2 } from 'lucide-react'
+import type { EventParamsDefinition } from '@visactor/vchart'
 import { useTranslation } from 'react-i18next'
-import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
+import type { TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
-import {
-  TIME_GRANULARITY_OPTIONS,
-  TIME_RANGE_PRESETS,
-} from '@/features/dashboard/constants'
-import {
-  getDefaultDays,
-  getSavedGranularity,
-  saveGranularity,
-  processUserChartData,
-} from '@/features/dashboard/lib'
+import { processUserChartData } from '@/features/dashboard/lib'
 import type { ProcessedUserChartData } from '@/features/dashboard/types'
 
 let themeManagerPromise: Promise<
@@ -64,16 +56,17 @@ const USER_CHARTS: {
   },
 ]
 
-const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
+export type UserUsageMetric = 'quota' | 'tokens'
 
-type UserMetric = 'quota' | 'tokens'
+interface UserChartsProps {
+  timeRange: { start_timestamp: number; end_timestamp: number }
+  timeGranularity: TimeGranularity
+  topUserLimit: number
+  userMetric: UserUsageMetric
+  onUserSelect: (userId: number) => void
+}
 
-const USER_METRIC_OPTIONS: { value: UserMetric; labelKey: string }[] = [
-  { value: 'quota', labelKey: 'Quota' },
-  { value: 'tokens', labelKey: 'Tokens' },
-]
-
-export function UserCharts() {
+export function UserCharts(props: UserChartsProps) {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
   const { customization } = useThemeCustomization()
@@ -81,44 +74,6 @@ export function UserCharts() {
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
-
-  const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>(() =>
-    getSavedGranularity()
-  )
-  const [selectedRange, setSelectedRange] = useState<number>(() =>
-    getDefaultDays(timeGranularity)
-  )
-  const [topUserLimit, setTopUserLimit] = useState(10)
-  const [userMetric, setUserMetric] = useState<UserMetric>('quota')
-  const [timeRange, setTimeRange] = useState(() => {
-    const days = getDefaultDays(timeGranularity)
-    const { start, end } = getRollingDateRange(days)
-    return {
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    }
-  })
-
-  const handleRangeChange = useCallback((days: number) => {
-    setSelectedRange(days)
-    const { start, end } = getRollingDateRange(days)
-    setTimeRange({
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    })
-  }, [])
-
-  const handleGranularityChange = useCallback(
-    (g: TimeGranularity) => {
-      setTimeGranularity(g)
-      saveGranularity(g)
-      const days = getDefaultDays(g)
-      if (days !== selectedRange) {
-        handleRangeChange(days)
-      }
-    },
-    [selectedRange, handleRangeChange]
-  )
 
   useEffect(() => {
     const updateTheme = async () => {
@@ -137,8 +92,8 @@ export function UserCharts() {
   }, [resolvedTheme])
 
   const { data: userData, isLoading } = useQuery({
-    queryKey: ['dashboard', 'user-quota', timeRange],
-    queryFn: () => getUserQuotaDataByUsers(timeRange),
+    queryKey: ['dashboard', 'user-quota', props.timeRange],
+    queryFn: () => getUserQuotaDataByUsers(props.timeRange),
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })
@@ -147,119 +102,37 @@ export function UserCharts() {
     () =>
       processUserChartData(
         isLoading ? [] : (userData ?? []),
-        timeGranularity,
+        props.timeGranularity,
         t,
-        topUserLimit,
+        props.topUserLimit,
         customization.preset,
-        userMetric
+        props.userMetric
       ),
     [
       userData,
       isLoading,
-      timeGranularity,
+      props.timeGranularity,
       t,
-      topUserLimit,
+      props.topUserLimit,
       customization.preset,
-      customization.radius,
-      userMetric,
+      props.userMetric,
     ]
   )
 
   return (
-    <div className='space-y-3'>
-      <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
-        <Tabs
-          value={String(selectedRange)}
-          onValueChange={(value) => handleRangeChange(Number(value))}
-          className='shrink-0'
-        >
-          <TabsList>
-            {TIME_RANGE_PRESETS.map((preset) => (
-              <TabsTrigger
-                key={preset.days}
-                value={String(preset.days)}
-                className='px-2.5 text-xs'
-              >
-                {t(preset.label)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        <Tabs
-          value={timeGranularity}
-          onValueChange={(value) =>
-            handleGranularityChange(value as TimeGranularity)
-          }
-          className='shrink-0'
-        >
-          <TabsList>
-            {TIME_GRANULARITY_OPTIONS.map((opt) => (
-              <TabsTrigger
-                key={opt.value}
-                value={opt.value}
-                className='px-2.5 text-xs'
-              >
-                {t(opt.label)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          {USER_METRIC_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type='button'
-              onClick={() => setUserMetric(opt.value)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                userMetric === opt.value
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t(opt.labelKey)}
-            </button>
-          ))}
-        </div>
-
-        <Tabs
-          value={String(topUserLimit)}
-          onValueChange={(value) => setTopUserLimit(Number(value))}
-          className='shrink-0'
-        >
-          <TabsList>
-            <span className='text-muted-foreground px-2 text-xs font-medium whitespace-nowrap'>
-              {t('Top Users')}
-            </span>
-            {TOP_USER_LIMIT_OPTIONS.map((limit) => (
-              <TabsTrigger
-                key={limit}
-                value={String(limit)}
-                className='px-2.5 text-xs'
-              >
-                {t('Top {{count}}', { count: limit })}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        {isLoading && (
-          <Loader2 className='text-muted-foreground size-4 animate-spin' />
-        )}
-      </div>
-
+    <div className='flex flex-col gap-3'>
       <div className='grid gap-3'>
         {USER_CHARTS.map((chart) => {
           const spec = chartData[chart.specKey]
           const titleKey =
-            userMetric === 'tokens' ? chart.tokensLabelKey : chart.labelKey
+            props.userMetric === 'tokens'
+              ? chart.tokensLabelKey
+              : chart.labelKey
           const isRank = chart.value === 'rank'
-          const actualCount =
-            isRank
-              ? (spec as { data?: Array<{ values?: unknown[] }> })?.data?.[0]
-                  ?.values?.length ?? 0
-              : 0
+          const actualCount = isRank
+            ? ((spec as { data?: Array<{ values?: unknown[] }> })?.data?.[0]
+                ?.values?.length ?? 0)
+            : 0
           const rankHeight = actualCount * 32 + 50
 
           return (
@@ -268,7 +141,11 @@ export function UserCharts() {
               className='overflow-hidden rounded-lg border'
             >
               <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
-                <Users className='text-muted-foreground/60 size-4' />
+                <HugeiconsIcon
+                  icon={UserMultiple02Icon}
+                  strokeWidth={2}
+                  className='text-muted-foreground/60 size-4'
+                />
                 <div className='text-sm font-semibold'>{t(titleKey)}</div>
               </div>
 
@@ -286,13 +163,23 @@ export function UserCharts() {
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${userMetric}-${resolvedTheme}-${customization.preset}`}
+                      key={`user-${chart.value}-${props.topUserLimit}-${props.userMetric}-${resolvedTheme}-${customization.preset}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',
                         background: 'transparent',
                       }}
                       option={VCHART_OPTION}
+                      onClick={
+                        isRank
+                          ? (event: EventParamsDefinition['click']) => {
+                              const userId = Number(event.datum?.UserID)
+                              if (Number.isInteger(userId) && userId > 0) {
+                                props.onUserSelect(userId)
+                              }
+                            }
+                          : undefined
+                      }
                     />
                   )
                 )}
