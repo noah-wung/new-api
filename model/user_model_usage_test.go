@@ -54,7 +54,7 @@ func TestGetUserModelUsageRows(t *testing.T) {
 	}).Error)
 	require.NoError(t, db.Create(&[]ExternalUsageAggregate{
 		{UserID: user.Id, Origin: ExternalUsageOriginClientReport, Source: "codex", NormalizedModelName: "gpt-5", BucketAt: 1717200000, TotalTokens: 150, EventCount: 1},
-		{UserID: user.Id, Origin: ExternalUsageOriginClientReport, Source: "codex", NormalizedModelName: "gpt-5", BucketAt: 1717203600, TotalTokens: 250, EventCount: 3},
+		{UserID: user.Id, Origin: ExternalUsageOriginClientReport, Source: "codex", NormalizedModelName: "GPT-5", BucketAt: 1717203600, TotalTokens: 250, EventCount: 3},
 		{UserID: user.Id, Origin: ExternalUsageOriginCursorImport, Source: "cursor", NormalizedModelName: "cursor:auto", BucketAt: 1717207200, TotalTokens: 50, EventCount: 2},
 		{UserID: user.Id, Origin: ExternalUsageOriginCursorImport, Source: "cursor", NormalizedModelName: "outside", BucketAt: 1717210001, TotalTokens: 999, EventCount: 9},
 	}).Error)
@@ -67,8 +67,7 @@ func TestGetUserModelUsageRows(t *testing.T) {
 	gateway, err := GetGatewayUserModelUsageRows(user.Id, 1717190000, 1717210000)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []GatewayUserModelUsageRow{
-		{ModelName: "gpt-5", TokenUsage: 300, Quota: 120, GatewayRequests: 5},
-		{ModelName: "GPT-5", TokenUsage: 10, Quota: 5, GatewayRequests: 1},
+		{ModelName: "gpt-5", TokenUsage: 310, Quota: 125, GatewayRequests: 6},
 	}, gateway)
 
 	external, err := GetExternalUserModelUsageRows(user.Id, 1717190000, 1717210000)
@@ -77,6 +76,43 @@ func TestGetUserModelUsageRows(t *testing.T) {
 		{Source: "codex", ModelName: "gpt-5", TokenUsage: 400, ExternalEvents: 4},
 		{Source: "cursor", ModelName: "cursor:auto", TokenUsage: 50, ExternalEvents: 2},
 	}, external)
+}
+
+func TestGetUserModelUsageRowsDeterministicAndNonNil(t *testing.T) {
+	db := setupUserModelUsageTestDB(t)
+
+	require.NoError(t, db.Create(&[]QuotaData{
+		{UserID: 42, ModelName: "zeta", CreatedAt: 1717200000, TokenUsed: 2, Quota: 2, Count: 2},
+		{UserID: 42, ModelName: "Alpha", CreatedAt: 1717200000, TokenUsed: 1, Quota: 1, Count: 1},
+	}).Error)
+	require.NoError(t, db.Create(&[]ExternalUsageAggregate{
+		{UserID: 42, Origin: ExternalUsageOriginClientReport, Source: "zeta-source", NormalizedModelName: "zeta", BucketAt: 1717200000, TotalTokens: 2, EventCount: 2},
+		{UserID: 42, Origin: ExternalUsageOriginClientReport, Source: "alpha-source", NormalizedModelName: "Alpha", BucketAt: 1717200000, TotalTokens: 1, EventCount: 1},
+	}).Error)
+
+	gateway, err := GetGatewayUserModelUsageRows(42, 1717190000, 1717210000)
+	require.NoError(t, err)
+	require.Equal(t, []GatewayUserModelUsageRow{
+		{ModelName: "alpha", TokenUsage: 1, Quota: 1, GatewayRequests: 1},
+		{ModelName: "zeta", TokenUsage: 2, Quota: 2, GatewayRequests: 2},
+	}, gateway)
+
+	external, err := GetExternalUserModelUsageRows(42, 1717190000, 1717210000)
+	require.NoError(t, err)
+	require.Equal(t, []ExternalUserModelUsageRow{
+		{Source: "alpha-source", ModelName: "alpha", TokenUsage: 1, ExternalEvents: 1},
+		{Source: "zeta-source", ModelName: "zeta", TokenUsage: 2, ExternalEvents: 2},
+	}, external)
+
+	emptyGateway, err := GetGatewayUserModelUsageRows(99, 1717190000, 1717210000)
+	require.NoError(t, err)
+	require.NotNil(t, emptyGateway)
+	require.Empty(t, emptyGateway)
+
+	emptyExternal, err := GetExternalUserModelUsageRows(99, 1717190000, 1717210000)
+	require.NoError(t, err)
+	require.NotNil(t, emptyExternal)
+	require.Empty(t, emptyExternal)
 }
 
 func TestGetUserModelUsageRowsUsesStableUserIDWhenMergingSources(t *testing.T) {
