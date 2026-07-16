@@ -12,6 +12,10 @@ _Avoid_: Token usage, raw tokens
 Raw statistical token volume consumed by API calls.
 _Avoid_: Quota, cost
 
+**Model usage summary**:
+An aggregate of a user's total **Token usage** and **Quota** grouped by model for a selected time range; Gateway request count and external usage event count are separate supplementary metrics, and token subcategories are outside the summary.
+_Avoid_: Usage total, model cost
+
 **Gateway operating metrics**:
 Runtime metrics derived from gateway-handled API requests, such as request count, RPM, and TPM.
 _Avoid_: External tool usage analytics
@@ -93,7 +97,7 @@ The primary application area where users and administrators manage and inspect e
 _Avoid_: API logs
 
 **External usage feature flag**:
-The site-wide switch that controls external usage collection, reporting, and user-facing access.
+The site-wide switch that controls new external usage collection, reporting, and external-usage workspace actions; disabling it does not hide retained historical aggregates from administrators.
 _Avoid_: Per-source policy
 
 **Usage aggregate retention**:
@@ -116,6 +120,11 @@ _Avoid_: Timestamp-only duplicate check
 
 - **Token usage** can contribute to **Quota** through model pricing and billing rules.
 - **Quota** is the user-facing billing consumption value; **Token usage** is the raw usage statistic.
+- A **Model usage summary** keeps **Token usage** and **Quota** distinct and may include request count as supporting context.
+- A **Model usage summary** includes gateway and **External tool usage** token volume while preserving each concrete source, such as Gateway, Cursor, or Codex; external usage contributes no **Quota**.
+- Request count in a **Model usage summary** counts Gateway requests only and never combines **External usage events** with API calls.
+- A **Model usage summary** may display the number of **External usage events** in its own column, separate from Gateway request count.
+- A **Model usage summary** groups model identities case-insensitively using a lowercase canonical name; similar names and versioned names remain separate unless an explicit external model mapping assigns the same **Normalized model name**.
 - **Gateway operating metrics** are derived only from gateway-handled requests.
 - **External tool usage** contributes to **Token usage** analytics but does not directly consume **Quota**.
 - **External tool usage** is recorded as **External usage events** before being aggregated into analytics.
@@ -134,7 +143,7 @@ _Avoid_: Timestamp-only duplicate check
 - **Client-reported usage** belongs to a **Client report batch** for upload accounting, not ordinary user rollback.
 - **External usage detail** is available for administrator diagnostics but ordinary users see devices and aggregates by default.
 - The **External usage workspace** is a standalone General navigation item, not part of gateway usage logs.
-- The **External usage feature flag** gates user access, device credential creation, imports, and report ingestion.
+- The **External usage feature flag** gates external-usage workspace access, device credential creation, imports, and report ingestion; administrators can still inspect retained historical totals through a **Model usage summary**.
 - **Supported client sources** can be accepted by the protocol before each source has a bundled local parser.
 - A **Usage reporting agent** runs on the user's device and communicates with the gateway through reporting APIs.
 - A **Reporting cursor** advances only for client usage deltas acknowledged as accepted or duplicate.
