@@ -176,12 +176,11 @@ export function createUserAnalyticsPresetRange(
   now = new Date()
 ): UserAnalyticsRange {
   assertValidDate(now, 'now')
-  const startDate = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() - days + 1
-  )
-  return createBrowserLocalDayRange(startDate, now)
+  const endTimestamp = toUnixSeconds(now)
+  return {
+    start_timestamp: endTimestamp - days * 24 * 60 * 60,
+    end_timestamp: endTimestamp,
+  }
 }
 
 export function getBrowserTimeZoneLabel(

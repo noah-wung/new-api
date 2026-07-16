@@ -58,15 +58,24 @@ describe('user analytics URL state', () => {
     )
   })
 
-  test('creates every supported preset from browser-local day boundaries', () => {
+  test('creates every supported preset as a rolling duration ending at now', () => {
     const now = new Date(2026, 6, 16, 13, 14, 15, 678)
+    const endTimestamp = seconds(now)
 
     for (const days of [1, 7, 14, 30, 90] as const) {
       assert.deepEqual(createUserAnalyticsPresetRange(days, now), {
-        start_timestamp: seconds(new Date(2026, 6, 17 - days, 0, 0, 0, 0)),
-        end_timestamp: seconds(new Date(2026, 6, 16, 23, 59, 59, 999)),
+        start_timestamp: endTimestamp - days * 24 * 60 * 60,
+        end_timestamp: endTimestamp,
       })
     }
+  })
+
+  test('keeps the 90-day preset exact after a daylight-saving fallback', () => {
+    const now = new Date(2026, 10, 15, 12, 34, 56, 789)
+    const range = createUserAnalyticsPresetRange(90, now)
+
+    assert.equal(range.end_timestamp, seconds(now))
+    assert.equal(range.end_timestamp - range.start_timestamp, 90 * 24 * 60 * 60)
   })
 
   test('converts custom dates to browser-local start and end of day', () => {
