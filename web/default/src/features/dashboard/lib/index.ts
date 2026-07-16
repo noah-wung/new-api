@@ -37,6 +37,7 @@ export { safeDivide, calculateDashboardStats } from './stats'
 export { getPreviewText } from './text'
 export {
   changeUserAnalyticsMetric,
+  changeUserAnalyticsUser,
   createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
   decodeUsageSources,

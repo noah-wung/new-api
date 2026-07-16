@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   changeUserAnalyticsMetric,
+  changeUserAnalyticsUser,
   createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
   decodeUsageSources,
@@ -248,6 +249,25 @@ describe('user analytics URL state', () => {
       }),
       tokens
     )
+  })
+
+  test('only clears detail filters when the selected user changes', () => {
+    const current = {
+      user_id: 7,
+      sources: 'gateway',
+      model_search: 'gpt',
+      p: 4,
+      page_size: 50 as const,
+    }
+
+    assert.deepEqual(changeUserAnalyticsUser(current, 7), current)
+    assert.deepEqual(changeUserAnalyticsUser(current, 8), {
+      ...current,
+      user_id: 8,
+      sources: undefined,
+      model_search: undefined,
+      p: 1,
+    })
   })
 
   test('preserves explicit sorting when the primary metric changes', () => {

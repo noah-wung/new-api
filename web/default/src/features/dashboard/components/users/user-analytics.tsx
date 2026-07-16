@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import type { TimeGranularity } from '@/lib/time'
 import {
   changeUserAnalyticsMetric,
+  changeUserAnalyticsUser,
   createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
   getBrowserTimeZoneLabel,
@@ -207,13 +208,12 @@ export function UserAnalytics() {
       setSelectedTarget(
         (current) => target ?? (current?.id === userId ? current : undefined)
       )
-      updateSearch({
-        user_id: userId,
-        sources: undefined,
-        model_search: undefined,
+      void navigate({
+        replace: true,
+        search: (current) => changeUserAnalyticsUser(current, userId),
       })
     },
-    [updateSearch]
+    [navigate]
   )
 
   const handleSearchUserSelect = useCallback(

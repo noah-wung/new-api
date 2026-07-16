@@ -271,6 +271,19 @@ export function patchUserAnalyticsSearch(
   return next
 }
 
+export function changeUserAnalyticsUser(
+  current: UserAnalyticsSearch,
+  userId: number
+): UserAnalyticsSearch {
+  if (current.user_id === userId) return current
+
+  return patchUserAnalyticsSearch(current, {
+    user_id: userId,
+    sources: undefined,
+    model_search: undefined,
+  })
+}
+
 export function changeUserAnalyticsMetric(
   current: UserAnalyticsSearch,
   metric: UserAnalyticsMetric
