@@ -41,12 +41,16 @@ type DatePickerProps = {
   selected: Date | undefined
   onSelect: (date: Date | undefined) => void
   placeholder?: string
+  id?: string
+  ariaLabel?: string
 }
 
 export function DatePicker({
   selected,
   onSelect,
   placeholder,
+  id,
+  ariaLabel,
 }: DatePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Pick a date')
@@ -57,6 +61,8 @@ export function DatePicker({
       <PopoverTrigger
         render={
           <Button
+            id={id}
+            aria-label={ariaLabel ?? placeholderText}
             variant='outline'
             data-empty={!selected}
             className='data-[empty=true]:text-muted-foreground w-[240px] justify-start text-start font-normal'

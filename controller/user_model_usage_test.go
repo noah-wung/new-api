@@ -253,14 +253,14 @@ func TestGetUserModelUsageRejectsPageOffsetOverflow(t *testing.T) {
 func TestGetUserModelUsageAppliesSortAndPaginationDefaults(t *testing.T) {
 	setupUserModelUsageControllerTestDB(t)
 	require.NoError(t, model.DB.Create(&model.QuotaData{
-		UserID: 2, Username: "usage-target", ModelName: "alpha", CreatedAt: 1717200000, TokenUsed: 1, Count: 1, Quota: 500,
+		UserID: 2, Username: "usage-target", ModelName: "zeta", CreatedAt: 1717200000, TokenUsed: 1, Count: 1, Quota: 500,
 	}).Error)
 
 	recorder := performUserModelUsageRequest(t, common.RoleAdminUser,
 		"/api/data/users/2/models?start_timestamp=1717190000&end_timestamp=1717210000&sources=gateway")
 	require.Equal(t, http.StatusOK, recorder.Code)
 	response := decodeUserModelUsageResponse(t, recorder)
-	require.Equal(t, []string{"alpha", "gpt-5"}, []string{response.Data.Items[0].ModelName, response.Data.Items[1].ModelName})
+	require.Equal(t, []string{"zeta", "gpt-5"}, []string{response.Data.Items[0].ModelName, response.Data.Items[1].ModelName})
 	require.Equal(t, 1, response.Data.Page)
 	require.Equal(t, 20, response.Data.PageSize)
 
@@ -268,7 +268,7 @@ func TestGetUserModelUsageAppliesSortAndPaginationDefaults(t *testing.T) {
 		"/api/data/users/2/models?start_timestamp=1717190000&end_timestamp=1717210000&sources=gateway&sort_by=model_name")
 	require.Equal(t, http.StatusOK, recorder.Code)
 	response = decodeUserModelUsageResponse(t, recorder)
-	require.Equal(t, []string{"alpha", "gpt-5"}, []string{response.Data.Items[0].ModelName, response.Data.Items[1].ModelName})
+	require.Equal(t, []string{"gpt-5", "zeta"}, []string{response.Data.Items[0].ModelName, response.Data.Items[1].ModelName})
 }
 
 func TestGetUserModelUsageUnknownUserReturnsNotFound(t *testing.T) {

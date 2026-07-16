@@ -79,6 +79,33 @@ func TestGetUserModelUsageRows(t *testing.T) {
 	}, external)
 }
 
+func TestGetUserModelUsageTargetIncludesActiveDisabledAndDeletedUsers(t *testing.T) {
+	db := setupUserModelUsageTestDB(t)
+
+	active := User{Username: "active-target", Password: "password", Status: common.UserStatusEnabled, AffCode: "active-target"}
+	disabled := User{Username: "disabled-target", Password: "password", Status: common.UserStatusDisabled, AffCode: "disabled-target"}
+	deleted := User{Username: "deleted-target", Password: "password", Status: common.UserStatusEnabled, AffCode: "deleted-target"}
+	require.NoError(t, db.Create(&active).Error)
+	require.NoError(t, db.Create(&disabled).Error)
+	require.NoError(t, db.Create(&deleted).Error)
+	require.NoError(t, db.Delete(&deleted).Error)
+
+	activeTarget, err := GetUserModelUsageTarget(active.Id)
+	require.NoError(t, err)
+	require.Equal(t, common.UserStatusEnabled, activeTarget.Status)
+	require.False(t, activeTarget.DeletedAt.Valid)
+
+	disabledTarget, err := GetUserModelUsageTarget(disabled.Id)
+	require.NoError(t, err)
+	require.Equal(t, common.UserStatusDisabled, disabledTarget.Status)
+	require.False(t, disabledTarget.DeletedAt.Valid)
+
+	deletedTarget, err := GetUserModelUsageTarget(deleted.Id)
+	require.NoError(t, err)
+	require.Equal(t, common.UserStatusEnabled, deletedTarget.Status)
+	require.True(t, deletedTarget.DeletedAt.Valid)
+}
+
 func TestGetUserModelUsageRowsDeterministicAndNonNil(t *testing.T) {
 	db := setupUserModelUsageTestDB(t)
 

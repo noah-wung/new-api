@@ -49,7 +49,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { Field, FieldGroup, FieldTitle } from '@/components/ui/field'
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MultiSelect } from '@/components/multi-select'
@@ -339,8 +344,11 @@ export function UserModelUsageSummary(props: UserModelUsageSummaryProps) {
           <CardContent className='flex flex-col gap-4'>
             <FieldGroup className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]'>
               <Field>
-                <FieldTitle>{t('Model name')}</FieldTitle>
+                <FieldLabel htmlFor='user-model-usage-model-search'>
+                  {t('Model name')}
+                </FieldLabel>
                 <Input
+                  id='user-model-usage-model-search'
                   value={modelSearch ?? ''}
                   aria-label={t('Model name')}
                   placeholder={t('Filter by literal model name')}
@@ -352,8 +360,11 @@ export function UserModelUsageSummary(props: UserModelUsageSummaryProps) {
                 />
               </Field>
               <Field>
-                <FieldTitle>{t('Sources')}</FieldTitle>
+                <FieldLabel htmlFor='user-model-usage-sources'>
+                  {t('Sources')}
+                </FieldLabel>
                 <MultiSelect
+                  id='user-model-usage-sources'
                   options={data.available_sources.map((source) => ({
                     label: source,
                     value: source,

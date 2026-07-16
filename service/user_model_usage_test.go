@@ -125,6 +125,58 @@ func TestBuildUserModelUsagePageUsesActiveMappingTargetsForFallbackNames(t *test
 	require.False(t, page.Items[1].Unmapped)
 }
 
+func TestBuildUserModelUsagePageKeepsSimilarAndVersionedModelsSeparate(t *testing.T) {
+	gateway := []model.GatewayUserModelUsageRow{
+		{ModelName: "GPT-5", TokenUsage: 10},
+		{ModelName: "gpt-5", TokenUsage: 20},
+		{ModelName: "gpt-5-mini", TokenUsage: 30},
+		{ModelName: "gpt-5-2026-01", TokenUsage: 40},
+	}
+
+	page := BuildUserModelUsagePage(&model.User{}, gateway, nil, nil, UserModelUsageQuery{
+		SortBy: UserModelUsageSortModelName, SortOrder: UserModelUsageSortAsc, Page: 1, PageSize: 20,
+	})
+
+	require.Equal(t, 3, page.Total)
+	require.Equal(t, []string{"gpt-5", "gpt-5-2026-01", "gpt-5-mini"}, []string{
+		page.Items[0].ModelName,
+		page.Items[1].ModelName,
+		page.Items[2].ModelName,
+	})
+	require.Equal(t, int64(30), page.Items[0].TokenUsage)
+}
+
+func TestBuildUserModelUsagePageMergesMappedExternalModelWithGatewayParent(t *testing.T) {
+	gateway := []model.GatewayUserModelUsageRow{
+		{ModelName: "GPT-5", TokenUsage: 100, Quota: 80, GatewayRequests: 2},
+	}
+	external := []model.ExternalUserModelUsageRow{
+		{Source: "cursor", ModelName: "gpt-5", TokenUsage: 50, ExternalEvents: 3},
+	}
+	mappings := []model.ExternalUsageModelMapping{
+		{Source: "cursor", SourceModelName: "Auto", NormalizedModelName: "gpt-5", Status: model.ExternalUsageStatusActive},
+	}
+
+	page := BuildUserModelUsagePage(&model.User{}, gateway, external, mappings, UserModelUsageQuery{
+		Page: 1, PageSize: 20,
+	})
+
+	require.Equal(t, 1, page.Total)
+	require.Len(t, page.Items, 1)
+	require.Equal(t, "gpt-5", page.Items[0].ModelName)
+	require.False(t, page.Items[0].Unmapped)
+	require.Equal(t, UserModelUsageTotals{
+		TokenUsage: 150, Quota: 80, GatewayRequests: 2, ExternalEvents: 3,
+	}, page.Totals)
+	require.Equal(t, []string{"gateway", "cursor"}, []string{
+		page.Items[0].Sources[0].Source,
+		page.Items[0].Sources[1].Source,
+	})
+	require.Nil(t, page.Items[0].Sources[0].ExternalEvents)
+	require.Nil(t, page.Items[0].Sources[1].Quota)
+	require.Nil(t, page.Items[0].Sources[1].GatewayRequests)
+}
+
 func TestBuildUserModelUsagePageSortsNumericFieldsWithModelNameTieBreak(t *testing.T) {
 	gateway := []model.GatewayUserModelUsageRow{
 		{ModelName: "beta", TokenUsage: 20, Quota: 5, GatewayRequests: 2},

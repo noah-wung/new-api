@@ -43,6 +43,7 @@ import {
   FieldDescription,
   FieldError,
   FieldGroup,
+  FieldLabel,
   FieldTitle,
 } from '@/components/ui/field'
 import {
@@ -205,16 +206,36 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
           <Field data-invalid={Boolean(props.customRangeError)}>
             <FieldTitle>{t('Custom Date Range')}</FieldTitle>
             <div className='flex flex-wrap items-center gap-2'>
-              <DatePicker
-                selected={props.customStartDate}
-                onSelect={props.onCustomStartDateChange}
-                placeholder={t('Start date')}
-              />
-              <DatePicker
-                selected={props.customEndDate}
-                onSelect={props.onCustomEndDateChange}
-                placeholder={t('End date')}
-              />
+              <div>
+                <FieldLabel
+                  htmlFor='user-analytics-start-date'
+                  className='sr-only'
+                >
+                  {t('Start date')}
+                </FieldLabel>
+                <DatePicker
+                  id='user-analytics-start-date'
+                  ariaLabel={t('Start date')}
+                  selected={props.customStartDate}
+                  onSelect={props.onCustomStartDateChange}
+                  placeholder={t('Start date')}
+                />
+              </div>
+              <div>
+                <FieldLabel
+                  htmlFor='user-analytics-end-date'
+                  className='sr-only'
+                >
+                  {t('End date')}
+                </FieldLabel>
+                <DatePicker
+                  id='user-analytics-end-date'
+                  ariaLabel={t('End date')}
+                  selected={props.customEndDate}
+                  onSelect={props.onCustomEndDateChange}
+                  placeholder={t('End date')}
+                />
+              </div>
             </div>
             <FieldDescription>
               {t('Browser timezone: {{timezone}}', {
@@ -295,9 +316,12 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
           </Field>
 
           <Field data-invalid={searchMutation.isError}>
-            <FieldTitle>{t('Find User')}</FieldTitle>
+            <FieldLabel htmlFor='user-analytics-user-search'>
+              {t('Find User')}
+            </FieldLabel>
             <InputGroup>
               <InputGroupInput
+                id='user-analytics-user-search'
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
                 onKeyDown={(event) => {
@@ -336,7 +360,9 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
           </Field>
 
           <Field>
-            <FieldTitle>{t('Selected User')}</FieldTitle>
+            <FieldLabel htmlFor='user-analytics-selected-user'>
+              {t('Selected User')}
+            </FieldLabel>
             <Combobox
               items={options}
               value={selectedOption}
@@ -346,6 +372,8 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
               itemToStringValue={getUserLabel}
             >
               <ComboboxInput
+                id='user-analytics-selected-user'
+                aria-label={t('Selected User')}
                 placeholder={t('Search to select a user')}
                 disabled={options.length === 0}
                 showClear={false}
