@@ -45,6 +45,7 @@ import {
   type UserAnalyticsUserOption,
 } from './user-analytics-controls'
 import { UserCharts, type UserUsageMetric } from './user-charts'
+import { UserModelUsageSummary } from './user-model-usage-summary'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
 
@@ -223,6 +224,10 @@ export function UserAnalytics() {
     [handleUserSelect]
   )
 
+  const handleUserMetadata = useCallback((target: UserModelUsageTarget) => {
+    setSelectedTarget(target)
+  }, [])
+
   return (
     <div className='flex flex-col gap-3'>
       <UserAnalyticsControls
@@ -252,6 +257,13 @@ export function UserAnalytics() {
         topUserLimit={topUserLimit}
         userMetric={userMetric}
         onUserSelect={handleUserSelect}
+      />
+      <UserModelUsageSummary
+        userId={search.user_id}
+        timeRange={timeRange}
+        search={search}
+        onSearchChange={updateSearch}
+        onUserMetadata={handleUserMetadata}
       />
     </div>
   )
