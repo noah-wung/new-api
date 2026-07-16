@@ -13,10 +13,10 @@ import (
 // QuotaData 柱状图数据
 type QuotaData struct {
 	Id          int    `json:"id"`
-	UserID      int    `json:"user_id" gorm:"index"`
+	UserID      int    `json:"user_id" gorm:"index;index:idx_qdt_user_created_model,priority:1"`
 	Username    string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
-	ModelName   string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
-	CreatedAt   int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
+	ModelName   string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;index:idx_qdt_user_created_model,priority:3;size:64;default:''"`
+	CreatedAt   int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2;index:idx_qdt_user_created_model,priority:2"`
 	TokenUsed   int    `json:"token_used" gorm:"default:0"`
 	Count       int    `json:"count" gorm:"default:0"`
 	Quota       int    `json:"quota" gorm:"default:0"`
@@ -148,10 +148,10 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	err = DB.Table("quota_data").
-		Select("quota_data.username, COALESCE(NULLIF(users.display_name, ''), quota_data.username) as display_name, quota_data.created_at, sum(quota_data.count) as count, sum(quota_data.quota) as quota, sum(quota_data.token_used) as token_used").
+		Select("quota_data.user_id, quota_data.username, COALESCE(NULLIF(users.display_name, ''), quota_data.username) as display_name, quota_data.created_at, sum(quota_data.count) as count, sum(quota_data.quota) as quota, sum(quota_data.token_used) as token_used").
 		Joins("LEFT JOIN users ON quota_data.user_id = users.id").
 		Where("quota_data.created_at >= ? and quota_data.created_at <= ?", startTime, endTime).
-		Group("quota_data.username, users.display_name, quota_data.created_at").
+		Group("quota_data.user_id, quota_data.username, users.display_name, quota_data.created_at").
 		Find(&quotaDatas).Error
 	if err != nil {
 		return nil, err
@@ -161,7 +161,7 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 		return nil, extErr
 	}
 	quotaDatas = mergeQuotaDataRows(quotaDatas, externalRows, func(item *QuotaData) string {
-		return item.Username + "-" + strconv.FormatInt(item.CreatedAt, 10)
+		return strconv.Itoa(item.UserID) + "-" + strconv.FormatInt(item.CreatedAt, 10)
 	})
 	return quotaDatas, err
 }

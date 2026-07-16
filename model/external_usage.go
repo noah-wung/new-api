@@ -131,11 +131,11 @@ type ExternalUsageClientEvent struct {
 
 type ExternalUsageAggregate struct {
 	Id                   int    `json:"id"`
-	UserID               int    `json:"user_id" gorm:"index:uk_eua_bucket,priority:1;index"`
+	UserID               int    `json:"user_id" gorm:"index:uk_eua_bucket,priority:1;index;index:idx_eua_user_bucket_model_source,priority:1"`
 	Origin               string `json:"origin" gorm:"type:varchar(32);default:'';index:uk_eua_bucket,priority:2;index"`
-	Source               string `json:"source" gorm:"type:varchar(32);default:'';index:uk_eua_bucket,priority:3;index"`
-	NormalizedModelName  string `json:"normalized_model_name" gorm:"type:varchar(128);default:'';index:uk_eua_bucket,priority:4;index"`
-	BucketAt             int64  `json:"bucket_at" gorm:"bigint;index:uk_eua_bucket,priority:5;index"`
+	Source               string `json:"source" gorm:"type:varchar(32);default:'';index:uk_eua_bucket,priority:3;index;index:idx_eua_user_bucket_model_source,priority:4"`
+	NormalizedModelName  string `json:"normalized_model_name" gorm:"type:varchar(128);default:'';index:uk_eua_bucket,priority:4;index;index:idx_eua_user_bucket_model_source,priority:3"`
+	BucketAt             int64  `json:"bucket_at" gorm:"bigint;index:uk_eua_bucket,priority:5;index;index:idx_eua_user_bucket_model_source,priority:2"`
 	EventCount           int64  `json:"event_count" gorm:"bigint;default:0"`
 	InputTokens          int64  `json:"input_tokens" gorm:"bigint;default:0"`
 	CachedInputTokens    int64  `json:"cached_input_tokens" gorm:"bigint;default:0"`
