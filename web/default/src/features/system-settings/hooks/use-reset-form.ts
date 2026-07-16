@@ -24,8 +24,12 @@ import type { DefaultValues, FieldValues, UseFormReturn } from 'react-hook-form'
  * Guards against naively resetting on every render by tracking the last
  * serialized snapshot of the defaults.
  */
-export function useResetForm<TFieldValues extends FieldValues>(
-  form: UseFormReturn<TFieldValues>,
+export function useResetForm<
+  TFieldValues extends FieldValues,
+  TContext = unknown,
+  TTransformedValues = TFieldValues,
+>(
+  form: UseFormReturn<TFieldValues, TContext, TTransformedValues>,
   values: DefaultValues<TFieldValues> | undefined
 ) {
   const lastSerializedDefaults = useRef<string | null>(null)

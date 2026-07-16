@@ -22,20 +22,25 @@ class MemoryStorage {
   }
 }
 
-const originalWindow = globalThis.window
+const originalWindowDescriptor = Object.getOwnPropertyDescriptor(
+  globalThis,
+  'window'
+)
 
 beforeEach(() => {
   const storage = new MemoryStorage()
-  globalThis.window = {
-    localStorage: storage,
-  } as Window & typeof globalThis
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { localStorage: storage },
+    writable: true,
+  })
 })
 
 afterEach(() => {
-  if (originalWindow) {
-    globalThis.window = originalWindow
+  if (originalWindowDescriptor) {
+    Object.defineProperty(globalThis, 'window', originalWindowDescriptor)
   } else {
-    delete (globalThis as { window?: Window & typeof globalThis }).window
+    Reflect.deleteProperty(globalThis, 'window')
   }
 })
 

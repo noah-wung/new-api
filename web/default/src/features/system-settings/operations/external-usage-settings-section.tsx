@@ -61,7 +61,8 @@ const schema = z.object({
   allowed_sources_text: z.string(),
 })
 
-type ExternalUsageSettingsFormValues = z.infer<typeof schema>
+type ExternalUsageSettingsFormInput = z.input<typeof schema>
+type ExternalUsageSettingsFormValues = z.output<typeof schema>
 
 type FlatExternalUsageDefaults = {
   'external_usage_setting.enabled': boolean
@@ -77,7 +78,7 @@ type ExternalUsageSettingsSectionProps = {
 
 const buildFormDefaults = (
   defaults: FlatExternalUsageDefaults
-): ExternalUsageSettingsFormValues => ({
+): ExternalUsageSettingsFormInput => ({
   external_usage_setting: {
     enabled: defaults['external_usage_setting.enabled'],
     max_devices_per_user: defaults['external_usage_setting.max_devices_per_user'],
@@ -107,7 +108,11 @@ export function ExternalUsageSettingsSection({
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
-  const form = useForm<ExternalUsageSettingsFormValues>({
+  const form = useForm<
+    ExternalUsageSettingsFormInput,
+    unknown,
+    ExternalUsageSettingsFormValues
+  >({
     resolver: zodResolver(schema),
     defaultValues: buildFormDefaults(defaultValues),
   })
