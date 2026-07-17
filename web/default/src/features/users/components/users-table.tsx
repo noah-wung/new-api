@@ -184,7 +184,9 @@ export function UsersTable() {
     onGlobalFilterChange,
     onColumnFiltersChange,
     manualPagination: true,
-    pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
+    manualFiltering: true,
+    totalCount: data?.total || 0,
+    ensurePageInRange,
   })
 
   const pageCount = table.getPageCount()

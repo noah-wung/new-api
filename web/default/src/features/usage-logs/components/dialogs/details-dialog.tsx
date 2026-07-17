@@ -87,7 +87,7 @@ function DetailRow(props: {
       </span>
       <span
         className={cn(
-          'max-w-full min-w-0 text-xs break-all sm:break-words',
+          'max-w-full min-w-0 text-xs break-all sm:wrap-break-word',
           props.mono && 'font-mono',
           props.muted && 'text-muted-foreground'
         )}
