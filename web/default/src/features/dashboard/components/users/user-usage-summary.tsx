@@ -23,7 +23,6 @@ import {
   changeUserAnalyticsUser,
   createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
-  getBrowserTimeZoneLabel,
   initializeUserUsageSummarySearch,
   patchUserAnalyticsSearch,
   resolveUserAnalyticsRange,
@@ -65,8 +64,6 @@ export function UserUsageSummary() {
           endDate: new Date(timeRange.end_timestamp * 1000),
           error: undefined,
         }
-  const [timeZoneLabel] = useState(() => getBrowserTimeZoneLabel())
-
   const updateSearch = useCallback(
     (patch: Partial<UserAnalyticsSearch>) => {
       void navigate({
@@ -183,8 +180,6 @@ export function UserUsageSummary() {
         customStartDate={activeCustomDraft.startDate}
         customEndDate={activeCustomDraft.endDate}
         customRangeError={activeCustomDraft.error}
-        timeZoneLabel={timeZoneLabel}
-        selectedUserId={search.user_id}
         selectedTarget={activeSelectedTarget}
         onPresetChange={handlePresetChange}
         onCustomStartDateChange={handleCustomStartDateChange}

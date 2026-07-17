@@ -20,6 +20,7 @@ import z from 'zod'
 import type {
   UserAnalyticsMetric,
   UserAnalyticsSearch,
+  UserModelUsageTarget,
   UserModelUsageSortField,
 } from '../types'
 
@@ -33,6 +34,20 @@ export const MAX_USER_ANALYTICS_RANGE_SECONDS = 90 * 24 * 60 * 60
 export interface UserAnalyticsRange {
   start_timestamp: number
   end_timestamp: number
+}
+
+export function selectUserSearchResult(
+  users: UserModelUsageTarget[],
+  keyword: string
+): UserModelUsageTarget | undefined {
+  const normalizedKeyword = keyword.trim().toLocaleLowerCase()
+  return (
+    users.find(
+      (user) =>
+        user.username.toLocaleLowerCase() === normalizedKeyword ||
+        user.display_name?.toLocaleLowerCase() === normalizedKeyword
+    ) ?? users[0]
+  )
 }
 
 const positiveInteger = z.number().int().positive()

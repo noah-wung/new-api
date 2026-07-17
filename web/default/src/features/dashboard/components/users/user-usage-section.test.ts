@@ -59,4 +59,20 @@ describe('user dashboard section composition', () => {
     assert.match(usage, /<UserModelUsageSummary/)
     assert.match(usage, /variant='usage-summary'/)
   })
+
+  test('keeps usage summary search direct and the selected user read-only', () => {
+    const usageControls = controls.slice(
+      controls.indexOf('function UserUsageSummaryControls'),
+      controls.indexOf('export function UserAnalyticsControls')
+    )
+
+    assert.match(usageControls, /lg:col-span-2/)
+    assert.match(usageControls, /grid grid-cols-2 gap-2/)
+    assert.match(usageControls, /selectUserSearchResult/)
+    assert.match(usageControls, /props\.onUserSelect/)
+    assert.match(usageControls, /props\.selectedTarget/)
+    assert.match(usageControls, /<StatusBadge/)
+    assert.doesNotMatch(usageControls, /Browser timezone/)
+    assert.doesNotMatch(usageControls, /<Combobox/)
+  })
 })

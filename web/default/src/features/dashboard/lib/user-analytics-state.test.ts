@@ -30,12 +30,36 @@ import {
   initializeUserAnalyticsSearch,
   patchUserAnalyticsSearch,
   resolveUserAnalyticsRange,
+  selectUserSearchResult,
   userAnalyticsSearchSchema,
 } from './user-analytics-state'
 
 const seconds = (date: Date) => Math.floor(date.getTime() / 1000)
 
 describe('user analytics URL state', () => {
+  test('selects a case-insensitive exact user match before the first result', () => {
+    const users = [
+      {
+        id: 1,
+        username: 'first',
+        display_name: '',
+        status: 1,
+        deleted: false,
+      },
+      {
+        id: 2,
+        username: 'ZhangHanxu',
+        display_name: '张含旭',
+        status: 1,
+        deleted: false,
+      },
+    ]
+
+    assert.equal(selectUserSearchResult(users, 'zhanghanxu')?.id, 2)
+    assert.equal(selectUserSearchResult(users, '张含旭')?.id, 2)
+    assert.equal(selectUserSearchResult(users, 'not-an-exact-match')?.id, 1)
+  })
+
   test('normalizes concrete sources', () => {
     assert.deepEqual(
       decodeUsageSources('Gateway,codex,codex,, cursor ,GATEWAY'),

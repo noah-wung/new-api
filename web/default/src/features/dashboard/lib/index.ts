@@ -52,6 +52,7 @@ export {
   initializeUserUsageSummarySearch,
   patchUserAnalyticsSearch,
   resolveUserAnalyticsRange,
+  selectUserSearchResult,
   userAnalyticsSearchSchema,
   MAX_USER_ANALYTICS_RANGE_SECONDS,
   USER_ANALYTICS_PRESET_DAYS,

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Search01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -30,14 +30,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from '@/components/ui/combobox'
 import {
   Field,
   FieldDescription,
@@ -62,6 +54,7 @@ import {
 } from '@/features/dashboard/constants'
 import {
   USER_ANALYTICS_PRESET_DAYS,
+  selectUserSearchResult,
   type UserAnalyticsPresetDays,
 } from '@/features/dashboard/lib'
 import type { UserModelUsageTarget } from '@/features/dashboard/types'
@@ -104,8 +97,6 @@ interface UserUsageSummaryControlsProps {
   customStartDate?: Date
   customEndDate?: Date
   customRangeError?: string
-  timeZoneLabel: string
-  selectedUserId?: number
   selectedTarget?: UserModelUsageTarget
   onPresetChange: (days: UserAnalyticsPresetDays) => void
   onCustomStartDateChange: (date: Date | undefined) => void
@@ -132,6 +123,14 @@ function getUserLabel(user: UserAnalyticsUserOption): string {
     return `${user.display_name} (@${user.username})`
   }
   return user.username
+}
+
+function getUserStatus(user: UserAnalyticsUserOption) {
+  if (user.deleted) return USER_STATUSES.DELETED
+  if (user.status === USER_STATUS.ENABLED) {
+    return USER_STATUSES[USER_STATUS.ENABLED]
+  }
+  return USER_STATUSES[USER_STATUS.DISABLED]
 }
 
 function UserAnalyticsCompactControls(
@@ -250,26 +249,18 @@ function UserUsageSummaryControls(props: UserUsageSummaryControlsProps) {
       if (!response.success) {
         throw new Error(response.message || 'Failed to search users')
       }
-      return response.data?.items ?? []
+      return (response.data?.items ?? []).map(toUserOption)
     },
   })
 
-  const options = useMemo(() => {
-    const users = new Map<number, UserAnalyticsUserOption>()
-    if (props.selectedTarget) {
-      users.set(props.selectedTarget.id, props.selectedTarget)
-    }
-    for (const user of searchMutation.data ?? []) {
-      users.set(user.id, toUserOption(user))
-    }
-    return [...users.values()]
-  }, [props.selectedTarget, searchMutation.data])
-
-  const selectedOption =
-    options.find((user) => user.id === props.selectedUserId) ?? null
-
   const runSearch = () => {
-    searchMutation.mutate(keyword.trim())
+    const searchKeyword = keyword.trim()
+    searchMutation.mutate(searchKeyword, {
+      onSuccess: (users) => {
+        const selectedUser = selectUserSearchResult(users, searchKeyword)
+        if (selectedUser) props.onUserSelect(selectedUser)
+      },
+    })
   }
 
   return (
@@ -281,7 +272,7 @@ function UserUsageSummaryControls(props: UserUsageSummaryControlsProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <FieldGroup className='grid gap-4 lg:grid-cols-2 xl:grid-cols-3'>
+        <FieldGroup className='grid gap-4 lg:grid-cols-2'>
           <Field>
             <FieldTitle id='user-analytics-range'>{t('Time Range')}</FieldTitle>
             <div className='overflow-x-auto pb-1'>
@@ -319,8 +310,8 @@ function UserUsageSummaryControls(props: UserUsageSummaryControlsProps) {
 
           <Field data-invalid={Boolean(props.customRangeError)}>
             <FieldTitle>{t('Custom Date Range')}</FieldTitle>
-            <div className='flex flex-wrap items-center gap-2'>
-              <div>
+            <div className='grid grid-cols-2 gap-2'>
+              <div className='min-w-0'>
                 <FieldLabel
                   htmlFor='user-analytics-start-date'
                   className='sr-only'
@@ -335,7 +326,7 @@ function UserUsageSummaryControls(props: UserUsageSummaryControlsProps) {
                   placeholder={t('Start date')}
                 />
               </div>
-              <div>
+              <div className='min-w-0'>
                 <FieldLabel
                   htmlFor='user-analytics-end-date'
                   className='sr-only'
@@ -351,15 +342,13 @@ function UserUsageSummaryControls(props: UserUsageSummaryControlsProps) {
                 />
               </div>
             </div>
-            <FieldDescription>
-              {t('Browser timezone: {{timezone}}', {
-                timezone: props.timeZoneLabel,
-              })}
-            </FieldDescription>
             <FieldError>{props.customRangeError}</FieldError>
           </Field>
 
-          <Field data-invalid={searchMutation.isError}>
+          <Field
+            className='lg:col-span-2'
+            data-invalid={searchMutation.isError}
+          >
             <FieldLabel htmlFor='user-analytics-user-search'>
               {t('Find User')}
             </FieldLabel>
@@ -401,58 +390,28 @@ function UserUsageSummaryControls(props: UserUsageSummaryControlsProps) {
             <FieldError>
               {searchMutation.isError ? t('Failed to search users') : undefined}
             </FieldError>
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor='user-analytics-selected-user'>
-              {t('Selected User')}
-            </FieldLabel>
-            <Combobox
-              items={options}
-              value={selectedOption}
-              onValueChange={(user) => {
-                if (user) props.onUserSelect(user)
-              }}
-              itemToStringValue={getUserLabel}
-            >
-              <ComboboxInput
-                id='user-analytics-selected-user'
-                aria-label={t('Selected User')}
-                placeholder={t('Search to select a user')}
-                disabled={options.length === 0}
-                showClear={false}
-              />
-              <ComboboxContent>
-                <ComboboxEmpty>{t('No users found')}</ComboboxEmpty>
-                <ComboboxList>
-                  {(user: UserAnalyticsUserOption) => {
-                    const status = user.deleted
-                      ? USER_STATUSES.DELETED
-                      : user.status === USER_STATUS.ENABLED
-                        ? USER_STATUSES[USER_STATUS.ENABLED]
-                        : USER_STATUSES[USER_STATUS.DISABLED]
-
-                    return (
-                      <ComboboxItem key={user.id} value={user}>
-                        <span className='min-w-0 flex-1 truncate'>
-                          {getUserLabel(user)}
-                        </span>
-                        <StatusBadge
-                          label={t(status.labelKey)}
-                          variant={status.variant}
-                          copyable={false}
-                        />
-                      </ComboboxItem>
-                    )
-                  }}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-            {!props.selectedUserId && (
-              <FieldDescription>
-                {t('No user is selected by default.')}
-              </FieldDescription>
+            {searchMutation.isSuccess && searchMutation.data.length === 0 && (
+              <FieldDescription>{t('No users found')}</FieldDescription>
             )}
+            <div className='mt-2 space-y-2'>
+              <FieldTitle>{t('Selected User')}</FieldTitle>
+              {props.selectedTarget ? (
+                <div className='flex min-h-9 items-center justify-between gap-3 rounded-md border px-3 py-2'>
+                  <span className='min-w-0 flex-1 truncate text-sm'>
+                    {getUserLabel(props.selectedTarget)}
+                  </span>
+                  <StatusBadge
+                    label={t(getUserStatus(props.selectedTarget).labelKey)}
+                    variant={getUserStatus(props.selectedTarget).variant}
+                    copyable={false}
+                  />
+                </div>
+              ) : (
+                <FieldDescription>
+                  {t('No user is selected by default.')}
+                </FieldDescription>
+              )}
+            </div>
           </Field>
         </FieldGroup>
       </CardContent>
