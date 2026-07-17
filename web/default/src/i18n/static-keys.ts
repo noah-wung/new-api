@@ -434,6 +434,10 @@ export const STATIC_I18N_KEYS = [
   // Admin user analytics
   'User Analytics Filters',
   'Use one time range and metric across user analytics.',
+  'User Usage Summary',
+  'User Usage Summary Filters',
+  'Select one user and time range for model usage totals.',
+  'Search for a user to view model usage.',
   'Time Range',
   'Custom Date Range',
   'Start date',
