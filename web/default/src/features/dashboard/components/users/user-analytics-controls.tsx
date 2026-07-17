@@ -135,8 +135,7 @@ function getUserLabel(user: UserAnalyticsUserOption): string {
 export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
   const { t } = useTranslation()
   const [keyword, setKeyword] = useState('')
-  const analyticsProps =
-    props.variant === 'usage-summary' ? undefined : props
+  const analyticsProps = props.variant === 'usage-summary' ? undefined : props
 
   const searchMutation = useMutation({
     mutationFn: async (value: string) => {
