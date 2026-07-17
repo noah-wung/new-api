@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import * as userAnalyticsState from './user-analytics-state'
 import {
   changeUserAnalyticsMetric,
   changeUserAnalyticsUser,
@@ -266,6 +267,29 @@ describe('user analytics URL state', () => {
         end_timestamp: 400,
       }),
       tokens
+    )
+  })
+
+  test('initializes summary filters without chart-only state', () => {
+    const initializeUserUsageSummarySearch = (
+      userAnalyticsState as Record<string, unknown>
+    ).initializeUserUsageSummarySearch
+    assert.equal(typeof initializeUserUsageSummarySearch, 'function')
+    if (typeof initializeUserUsageSummarySearch !== 'function') return
+
+    assert.deepEqual(
+      initializeUserUsageSummarySearch(
+        {},
+        { start_timestamp: 100, end_timestamp: 200 }
+      ),
+      {
+        start_timestamp: 100,
+        end_timestamp: 200,
+        sort_by: 'quota',
+        sort_order: 'desc',
+        p: 1,
+        page_size: 20,
+      }
     )
   })
 

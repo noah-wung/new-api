@@ -49,6 +49,7 @@ export {
   encodeUsageSources,
   getBrowserTimeZoneLabel,
   initializeUserAnalyticsSearch,
+  initializeUserUsageSummarySearch,
   patchUserAnalyticsSearch,
   resolveUserAnalyticsRange,
   userAnalyticsSearchSchema,

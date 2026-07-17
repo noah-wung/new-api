@@ -19,22 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import type { TimeGranularity } from '@/lib/time'
 import {
-  changeUserAnalyticsMetric,
   changeUserAnalyticsUser,
   createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
   getBrowserTimeZoneLabel,
-  getDefaultDays,
-  getSavedGranularity,
-  initializeUserAnalyticsSearch,
+  initializeUserUsageSummarySearch,
   patchUserAnalyticsSearch,
   resolveUserAnalyticsRange,
-  saveGranularity,
   USER_ANALYTICS_PRESET_DAYS,
   type UserAnalyticsPresetDays,
-  type UserAnalyticsRange,
 } from '@/features/dashboard/lib'
 import type {
   UserAnalyticsSearch,
@@ -44,32 +38,16 @@ import {
   UserAnalyticsControls,
   type UserAnalyticsUserOption,
 } from './user-analytics-controls'
-import { UserCharts, type UserUsageMetric } from './user-charts'
+import { UserModelUsageSummary } from './user-model-usage-summary'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
 
-export function UserAnalytics() {
+export function UserUsageSummary() {
   const { t } = useTranslation()
   const search = route.useSearch()
   const navigate = route.useNavigate()
-  const [initialState] = useState<{
-    granularity: TimeGranularity
-    range: UserAnalyticsRange
-  }>(() => {
-    const granularity = getSavedGranularity()
-    const days = getDefaultDays(granularity) as UserAnalyticsPresetDays
-    return {
-      granularity,
-      range: createUserAnalyticsPresetRange(days),
-    }
-  })
-
-  const timeRange = resolveUserAnalyticsRange(search, initialState.range)
-  const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>(
-    initialState.granularity
-  )
-  const userMetric: UserUsageMetric = search.metric ?? 'quota'
-  const [topUserLimit, setTopUserLimit] = useState(10)
+  const [initialRange] = useState(() => createUserAnalyticsPresetRange(7))
+  const timeRange = resolveUserAnalyticsRange(search, initialRange)
   const [selectedTarget, setSelectedTarget] = useState<UserModelUsageTarget>()
   const rangeKey = `${timeRange.start_timestamp}:${timeRange.end_timestamp}`
   const [customDraft, setCustomDraft] = useState<{
@@ -100,9 +78,9 @@ export function UserAnalytics() {
   )
 
   useEffect(() => {
-    const initializedSearch = initializeUserAnalyticsSearch(
+    const initializedSearch = initializeUserUsageSummarySearch(
       search,
-      initialState.range
+      initialRange
     )
     const needsInitialization = Object.entries(initializedSearch).some(
       ([key, value]) => search[key as keyof UserAnalyticsSearch] !== value
@@ -111,7 +89,7 @@ export function UserAnalytics() {
     if (!needsInitialization) return
 
     updateSearch(initializedSearch)
-  }, [initialState.range, search, updateSearch])
+  }, [initialRange, search, updateSearch])
 
   const activeSelectedTarget =
     selectedTarget?.id === search.user_id ? selectedTarget : undefined
@@ -152,9 +130,8 @@ export function UserAnalytics() {
 
   const handlePresetChange = useCallback(
     (days: UserAnalyticsPresetDays) => {
-      const range = createUserAnalyticsPresetRange(days)
       setCustomDraft(undefined)
-      updateSearch(range)
+      updateSearch(createUserAnalyticsPresetRange(days))
     },
     [updateSearch]
   )
@@ -181,51 +158,25 @@ export function UserAnalytics() {
     [activeCustomDraft.startDate, applyCustomRange, rangeKey]
   )
 
-  const handleGranularityChange = useCallback(
-    (granularity: TimeGranularity) => {
-      setTimeGranularity(granularity)
-      saveGranularity(granularity)
-    },
-    []
-  )
-
-  const handleMetricChange = useCallback(
-    (metric: UserUsageMetric) => {
-      void navigate({
-        replace: true,
-        search: (current) =>
-          changeUserAnalyticsMetric(
-            initializeUserAnalyticsSearch(current, initialState.range),
-            metric
-          ),
-      })
-    },
-    [initialState.range, navigate]
-  )
-
   const handleUserSelect = useCallback(
-    (userId: number, target?: UserModelUsageTarget) => {
-      setSelectedTarget(
-        (current) => target ?? (current?.id === userId ? current : undefined)
-      )
+    (user: UserAnalyticsUserOption) => {
+      setSelectedTarget(user)
       void navigate({
         replace: true,
-        search: (current) => changeUserAnalyticsUser(current, userId),
+        search: (current) => changeUserAnalyticsUser(current, user.id),
       })
     },
     [navigate]
   )
 
-  const handleSearchUserSelect = useCallback(
-    (user: UserAnalyticsUserOption) => {
-      handleUserSelect(user.id, user)
-    },
-    [handleUserSelect]
-  )
+  const handleUserMetadata = useCallback((target: UserModelUsageTarget) => {
+    setSelectedTarget(target)
+  }, [])
 
   return (
     <div className='flex flex-col gap-3'>
       <UserAnalyticsControls
+        variant='usage-summary'
         selectedPresetDays={
           customDraft?.rangeKey === rangeKey ? undefined : selectedPresetDays
         }
@@ -233,25 +184,19 @@ export function UserAnalytics() {
         customEndDate={activeCustomDraft.endDate}
         customRangeError={activeCustomDraft.error}
         timeZoneLabel={timeZoneLabel}
-        timeGranularity={timeGranularity}
-        userMetric={userMetric}
-        topUserLimit={topUserLimit}
         selectedUserId={search.user_id}
         selectedTarget={activeSelectedTarget}
         onPresetChange={handlePresetChange}
         onCustomStartDateChange={handleCustomStartDateChange}
         onCustomEndDateChange={handleCustomEndDateChange}
-        onTimeGranularityChange={handleGranularityChange}
-        onUserMetricChange={handleMetricChange}
-        onTopUserLimitChange={setTopUserLimit}
-        onUserSelect={handleSearchUserSelect}
-      />
-      <UserCharts
-        timeRange={timeRange}
-        timeGranularity={timeGranularity}
-        topUserLimit={topUserLimit}
-        userMetric={userMetric}
         onUserSelect={handleUserSelect}
+      />
+      <UserModelUsageSummary
+        userId={search.user_id}
+        timeRange={timeRange}
+        search={search}
+        onSearchChange={updateSearch}
+        onUserMetadata={handleUserMetadata}
       />
     </div>
   )

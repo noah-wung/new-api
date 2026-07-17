@@ -85,25 +85,35 @@ const USER_METRIC_OPTIONS: Array<{
 
 export type UserAnalyticsUserOption = UserModelUsageTarget
 
-interface UserAnalyticsControlsProps {
+interface UserFilterProps {
   selectedPresetDays?: UserAnalyticsPresetDays
   customStartDate?: Date
   customEndDate?: Date
   customRangeError?: string
   timeZoneLabel: string
-  timeGranularity: TimeGranularity
-  userMetric: UserUsageMetric
-  topUserLimit: number
   selectedUserId?: number
   selectedTarget?: UserModelUsageTarget
   onPresetChange: (days: UserAnalyticsPresetDays) => void
   onCustomStartDateChange: (date: Date | undefined) => void
   onCustomEndDateChange: (date: Date | undefined) => void
-  onTimeGranularityChange: (granularity: TimeGranularity) => void
-  onUserMetricChange: (metric: UserUsageMetric) => void
-  onTopUserLimitChange: (limit: number) => void
   onUserSelect: (user: UserAnalyticsUserOption) => void
 }
+
+type UserAnalyticsControlsProps = UserFilterProps &
+  (
+    | {
+        variant?: 'analytics'
+        timeGranularity: TimeGranularity
+        userMetric: UserUsageMetric
+        topUserLimit: number
+        onTimeGranularityChange: (granularity: TimeGranularity) => void
+        onUserMetricChange: (metric: UserUsageMetric) => void
+        onTopUserLimitChange: (limit: number) => void
+      }
+    | {
+        variant: 'usage-summary'
+      }
+  )
 
 function toUserOption(user: User): UserAnalyticsUserOption {
   return {
@@ -125,6 +135,8 @@ function getUserLabel(user: UserAnalyticsUserOption): string {
 export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
   const { t } = useTranslation()
   const [keyword, setKeyword] = useState('')
+  const analyticsProps =
+    props.variant === 'usage-summary' ? undefined : props
 
   const searchMutation = useMutation({
     mutationFn: async (value: string) => {
@@ -161,9 +173,19 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('User Analytics Filters')}</CardTitle>
+        <CardTitle>
+          {t(
+            props.variant === 'usage-summary'
+              ? 'User Usage Summary Filters'
+              : 'User Analytics Filters'
+          )}
+        </CardTitle>
         <CardDescription>
-          {t('Use one time range and metric across user analytics.')}
+          {t(
+            props.variant === 'usage-summary'
+              ? 'Select one user and time range for model usage totals.'
+              : 'Use one time range and metric across user analytics.'
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -245,75 +267,83 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
             <FieldError>{props.customRangeError}</FieldError>
           </Field>
 
-          <Field>
-            <FieldTitle id='user-analytics-granularity'>
-              {t('Chart Granularity')}
-            </FieldTitle>
-            <ToggleGroup
-              aria-labelledby='user-analytics-granularity'
-              variant='outline'
-              size='sm'
-              value={[props.timeGranularity]}
-              onValueChange={(values) => {
-                const value = values[0] as TimeGranularity | undefined
-                if (value) props.onTimeGranularityChange(value)
-              }}
-            >
-              {TIME_GRANULARITY_OPTIONS.map((option) => (
-                <ToggleGroupItem key={option.value} value={option.value}>
-                  {t(option.label)}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </Field>
+          {analyticsProps && (
+            <>
+              <Field>
+                <FieldTitle id='user-analytics-granularity'>
+                  {t('Chart Granularity')}
+                </FieldTitle>
+                <ToggleGroup
+                  aria-labelledby='user-analytics-granularity'
+                  variant='outline'
+                  size='sm'
+                  value={[analyticsProps.timeGranularity]}
+                  onValueChange={(values) => {
+                    const value = values[0] as TimeGranularity | undefined
+                    if (value) {
+                      analyticsProps.onTimeGranularityChange(value)
+                    }
+                  }}
+                >
+                  {TIME_GRANULARITY_OPTIONS.map((option) => (
+                    <ToggleGroupItem key={option.value} value={option.value}>
+                      {t(option.label)}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </Field>
 
-          <Field>
-            <FieldTitle id='user-analytics-metric'>{t('Metric')}</FieldTitle>
-            <ToggleGroup
-              aria-labelledby='user-analytics-metric'
-              variant='outline'
-              size='sm'
-              value={[props.userMetric]}
-              onValueChange={(values) => {
-                const value = values[0] as UserUsageMetric | undefined
-                if (value) props.onUserMetricChange(value)
-              }}
-            >
-              {USER_METRIC_OPTIONS.map((option) => (
-                <ToggleGroupItem key={option.value} value={option.value}>
-                  {t(option.labelKey)}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </Field>
+              <Field>
+                <FieldTitle id='user-analytics-metric'>
+                  {t('Metric')}
+                </FieldTitle>
+                <ToggleGroup
+                  aria-labelledby='user-analytics-metric'
+                  variant='outline'
+                  size='sm'
+                  value={[analyticsProps.userMetric]}
+                  onValueChange={(values) => {
+                    const value = values[0] as UserUsageMetric | undefined
+                    if (value) analyticsProps.onUserMetricChange(value)
+                  }}
+                >
+                  {USER_METRIC_OPTIONS.map((option) => (
+                    <ToggleGroupItem key={option.value} value={option.value}>
+                      {t(option.labelKey)}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </Field>
 
-          <Field>
-            <FieldTitle id='user-analytics-top-users'>
-              {t('Top Users')}
-            </FieldTitle>
-            <ToggleGroup
-              aria-labelledby='user-analytics-top-users'
-              variant='outline'
-              size='sm'
-              value={[String(props.topUserLimit)]}
-              onValueChange={(values) => {
-                const value = Number(values[0])
-                if (
-                  TOP_USER_LIMIT_OPTIONS.includes(
-                    value as (typeof TOP_USER_LIMIT_OPTIONS)[number]
-                  )
-                ) {
-                  props.onTopUserLimitChange(value)
-                }
-              }}
-            >
-              {TOP_USER_LIMIT_OPTIONS.map((limit) => (
-                <ToggleGroupItem key={limit} value={String(limit)}>
-                  {t('Top {{count}}', { count: limit })}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </Field>
+              <Field>
+                <FieldTitle id='user-analytics-top-users'>
+                  {t('Top Users')}
+                </FieldTitle>
+                <ToggleGroup
+                  aria-labelledby='user-analytics-top-users'
+                  variant='outline'
+                  size='sm'
+                  value={[String(analyticsProps.topUserLimit)]}
+                  onValueChange={(values) => {
+                    const value = Number(values[0])
+                    if (
+                      TOP_USER_LIMIT_OPTIONS.includes(
+                        value as (typeof TOP_USER_LIMIT_OPTIONS)[number]
+                      )
+                    ) {
+                      analyticsProps.onTopUserLimitChange(value)
+                    }
+                  }}
+                >
+                  {TOP_USER_LIMIT_OPTIONS.map((limit) => (
+                    <ToggleGroupItem key={limit} value={String(limit)}>
+                      {t('Top {{count}}', { count: limit })}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </Field>
+            </>
+          )}
 
           <Field data-invalid={searchMutation.isError}>
             <FieldLabel htmlFor='user-analytics-user-search'>

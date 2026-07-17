@@ -198,7 +198,7 @@ export function UserModelUsageSummary(props: UserModelUsageSummaryProps) {
               </EmptyMedia>
               <EmptyTitle>{t('Select a user')}</EmptyTitle>
               <EmptyDescription>
-                {t('Search for a user or click a bar in the user ranking.')}
+                {t('Search for a user to view model usage.')}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>

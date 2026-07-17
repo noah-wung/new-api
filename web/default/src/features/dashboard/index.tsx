@@ -88,6 +88,12 @@ const LazyUserAnalytics = lazy(() =>
   }))
 )
 
+const LazyUserUsageSummary = lazy(() =>
+  import('./components/users/user-usage-summary').then((m) => ({
+    default: m.UserUsageSummary,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -347,6 +353,13 @@ export function Dashboard() {
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserAnalytics />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'user-usage' && isAdmin && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyUserUsageSummary />
               </Suspense>
             </FadeIn>
           )}

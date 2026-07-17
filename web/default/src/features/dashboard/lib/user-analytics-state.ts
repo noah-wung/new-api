@@ -238,6 +238,21 @@ export function initializeUserAnalyticsSearch(
   }
 }
 
+export function initializeUserUsageSummarySearch(
+  current: UserAnalyticsSearch,
+  fallbackRange: UserAnalyticsRange
+): UserAnalyticsSearch {
+  const range = resolveUserAnalyticsRange(current, fallbackRange)
+  return {
+    ...current,
+    ...range,
+    sort_by: current.sort_by ?? 'quota',
+    sort_order: current.sort_order ?? 'desc',
+    p: current.p ?? 1,
+    page_size: current.page_size ?? 20,
+  }
+}
+
 const pageResetKeys = [
   'user_id',
   'start_timestamp',
