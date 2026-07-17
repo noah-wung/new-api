@@ -89,6 +89,8 @@ export function RedemptionsTable() {
       | string[]
       | undefined) ?? []
   const statusFilterValue = statusFilter[0] ?? ''
+  const searchFailedMessage = t(ERROR_MESSAGES.SEARCH_FAILED)
+  const loadFailedMessage = t(ERROR_MESSAGES.LOAD_FAILED)
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -99,6 +101,8 @@ export function RedemptionsTable() {
       globalFilter,
       statusFilterValue,
       refreshTrigger,
+      searchFailedMessage,
+      loadFailedMessage,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
@@ -120,11 +124,9 @@ export function RedemptionsTable() {
       if (!result.success) {
         toast.error(
           result.message ||
-            t(
-              hasFilter || hasStatusFilter
-                ? ERROR_MESSAGES.SEARCH_FAILED
-                : ERROR_MESSAGES.LOAD_FAILED
-            )
+            (hasFilter || hasStatusFilter
+              ? searchFailedMessage
+              : loadFailedMessage)
         )
         return { items: [], total: 0 }
       }
@@ -172,8 +174,7 @@ export function RedemptionsTable() {
     onColumnFiltersChange,
     manualPagination: true,
     manualFiltering: true,
-    totalCount: data?.total || 0,
-    ensurePageInRange,
+    pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 
   const pageCount = table.getPageCount()

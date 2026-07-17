@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toIntlLocale } from '@/i18n/languages'
 import {
   AlertTriangle,
   Loader2,
@@ -24,12 +26,10 @@ import {
   ServerCog,
   Trash2,
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { ErrorState } from '@/components/error-state'
+import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -55,10 +55,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { toIntlLocale } from '@/i18n/languages'
-import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
-
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ErrorState } from '@/components/error-state'
 import {
   deleteStaleSystemInstance,
   deleteStaleSystemInstances,
@@ -495,12 +493,13 @@ export function SystemInstancesPanel() {
   const [deleteTarget, setDeleteTarget] = useState<SystemInstance | null>(null)
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
   const [deletingNodeName, setDeletingNodeName] = useState<string | null>(null)
+  const loadErrorMessage = t('We could not load instances.')
   const instancesQuery = useQuery({
-    queryKey: ['system-info', 'instances'],
+    queryKey: ['system-info', 'instances', loadErrorMessage],
     queryFn: async () => {
       const res = await listSystemInstances()
       if (!res.success || !Array.isArray(res.data)) {
-        throw new Error(res.message || t('We could not load instances.'))
+        throw new Error(res.message || loadErrorMessage)
       }
       return res.data
     },

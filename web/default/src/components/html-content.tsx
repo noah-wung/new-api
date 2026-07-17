@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import DOMPurify, { type Config } from 'dompurify'
 import { useEffect, useMemo, useRef } from 'react'
-
+import DOMPurify, { type Config } from 'dompurify'
 import { cn } from '@/lib/utils'
 
 export type HtmlContentVariant = 'inline' | 'isolated'
@@ -97,10 +96,7 @@ function hardenIsolatedHtml(html: string): string {
 
   template.content.querySelectorAll('a[target="_blank"]').forEach((link) => {
     const rel = new Set(
-      link
-        .getAttribute('rel')
-        ?.split(/\s+/)
-        .filter(Boolean) ?? []
+      link.getAttribute('rel')?.split(/\s+/).filter(Boolean) ?? []
     )
 
     rel.add('noopener')
@@ -182,10 +178,7 @@ function IsolatedHtmlContent(props: {
   }, [props.html])
 
   return (
-    <div
-      ref={containerRef}
-      className={cn('block w-full', props.className)}
-    />
+    <div ref={containerRef} className={cn('block w-full', props.className)} />
   )
 }
 
@@ -206,7 +199,6 @@ export function HtmlContent(props: HtmlContentProps) {
         'prose prose-neutral dark:prose-invert max-w-none',
         props.className
       )}
-      // eslint-disable-next-line react/no-danger -- html is sanitized above
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

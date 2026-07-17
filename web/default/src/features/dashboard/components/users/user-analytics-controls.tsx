@@ -126,7 +126,7 @@ function getUserLabel(user: UserAnalyticsUserOption): string {
 }
 
 function getUserStatus(user: UserAnalyticsUserOption) {
-  if (user.deleted) return USER_STATUSES.DELETED
+  if (user.deleted) return USER_STATUSES[USER_STATUS.DELETED]
   if (user.status === USER_STATUS.ENABLED) {
     return USER_STATUSES[USER_STATUS.ENABLED]
   }

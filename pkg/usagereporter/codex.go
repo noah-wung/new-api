@@ -92,8 +92,9 @@ func CollectCodexUsageWithWindow(root string, state *State, acceptWindowDays int
 		Events:    make([]UsageEvent, 0),
 		NextState: nextState,
 	}
+	resetSessionTotals := make(map[string]struct{})
 	for _, path := range files {
-		fileEvents, fileVersion, fileState, err := collectCodexUsageFile(path, state, nextState, window, seenEventIDs)
+		fileEvents, fileVersion, fileState, err := collectCodexUsageFile(path, state, nextState, window, seenEventIDs, resetSessionTotals)
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +128,7 @@ func buildClientAcceptWindow(acceptWindowDays int) clientAcceptWindow {
 	}
 }
 
-func collectCodexUsageFile(path string, current *State, next *State, window clientAcceptWindow, seenEventIDs map[string]struct{}) ([]UsageEvent, string, FileState, error) {
+func collectCodexUsageFile(path string, current *State, next *State, window clientAcceptWindow, seenEventIDs map[string]struct{}, resetSessionTotals map[string]struct{}) ([]UsageEvent, string, FileState, error) {
 	fileState := current.Files[path]
 	sessionID := strings.TrimSpace(fileState.SessionID)
 	cliVersion := fileState.CLIVersion
@@ -136,7 +137,11 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 	if shouldForceCodexStateRescan(fileState, current) {
 		offset = 0
 		if sessionID != "" {
-			delete(next.SessionTotals, sha256Hex(sessionID))
+			sessionHash := sha256Hex(sessionID)
+			if _, alreadyReset := resetSessionTotals[sessionHash]; !alreadyReset {
+				delete(next.SessionTotals, sessionHash)
+				resetSessionTotals[sessionHash] = struct{}{}
+			}
 		}
 	}
 
