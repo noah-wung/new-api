@@ -18,14 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
 import type { TimeGranularity } from '@/lib/time'
 import {
   changeUserAnalyticsMetric,
-  changeUserAnalyticsUser,
-  createBrowserLocalDayRange,
   createUserAnalyticsPresetRange,
-  getBrowserTimeZoneLabel,
   getDefaultDays,
   getSavedGranularity,
   initializeUserAnalyticsSearch,
@@ -36,20 +32,13 @@ import {
   type UserAnalyticsPresetDays,
   type UserAnalyticsRange,
 } from '@/features/dashboard/lib'
-import type {
-  UserAnalyticsSearch,
-  UserModelUsageTarget,
-} from '@/features/dashboard/types'
-import {
-  UserAnalyticsControls,
-  type UserAnalyticsUserOption,
-} from './user-analytics-controls'
+import type { UserAnalyticsSearch } from '@/features/dashboard/types'
+import { UserAnalyticsControls } from './user-analytics-controls'
 import { UserCharts, type UserUsageMetric } from './user-charts'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
 
 export function UserAnalytics() {
-  const { t } = useTranslation()
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const [initialState] = useState<{
@@ -70,24 +59,6 @@ export function UserAnalytics() {
   )
   const userMetric: UserUsageMetric = search.metric ?? 'quota'
   const [topUserLimit, setTopUserLimit] = useState(10)
-  const [selectedTarget, setSelectedTarget] = useState<UserModelUsageTarget>()
-  const rangeKey = `${timeRange.start_timestamp}:${timeRange.end_timestamp}`
-  const [customDraft, setCustomDraft] = useState<{
-    rangeKey: string
-    startDate?: Date
-    endDate?: Date
-    error?: string
-  }>()
-  const activeCustomDraft =
-    customDraft?.rangeKey === rangeKey
-      ? customDraft
-      : {
-          rangeKey,
-          startDate: new Date(timeRange.start_timestamp * 1000),
-          endDate: new Date(timeRange.end_timestamp * 1000),
-          error: undefined,
-        }
-  const [timeZoneLabel] = useState(() => getBrowserTimeZoneLabel())
 
   const updateSearch = useCallback(
     (patch: Partial<UserAnalyticsSearch>) => {
@@ -113,9 +84,6 @@ export function UserAnalytics() {
     updateSearch(initializedSearch)
   }, [initialState.range, search, updateSearch])
 
-  const activeSelectedTarget =
-    selectedTarget?.id === search.user_id ? selectedTarget : undefined
-
   const selectedPresetDays = useMemo(() => {
     const seconds = timeRange.end_timestamp - timeRange.start_timestamp
     return USER_ANALYTICS_PRESET_DAYS.find(
@@ -123,62 +91,12 @@ export function UserAnalytics() {
     )
   }, [timeRange.end_timestamp, timeRange.start_timestamp])
 
-  const applyCustomRange = useCallback(
-    (
-      startDate: Date | undefined,
-      endDate: Date | undefined,
-      draft: { rangeKey: string; startDate?: Date; endDate?: Date }
-    ) => {
-      if (!startDate || !endDate) {
-        setCustomDraft(draft)
-        return
-      }
-
-      try {
-        const range = createBrowserLocalDayRange(startDate, endDate)
-        setCustomDraft(draft)
-        updateSearch(range)
-      } catch {
-        setCustomDraft({
-          ...draft,
-          error: t(
-            'Select an end date on or after the start date, within 90 days.'
-          ),
-        })
-      }
-    },
-    [t, updateSearch]
-  )
-
   const handlePresetChange = useCallback(
     (days: UserAnalyticsPresetDays) => {
       const range = createUserAnalyticsPresetRange(days)
-      setCustomDraft(undefined)
       updateSearch(range)
     },
     [updateSearch]
-  )
-
-  const handleCustomStartDateChange = useCallback(
-    (date: Date | undefined) => {
-      applyCustomRange(date, activeCustomDraft.endDate, {
-        rangeKey,
-        startDate: date,
-        endDate: activeCustomDraft.endDate,
-      })
-    },
-    [activeCustomDraft.endDate, applyCustomRange, rangeKey]
-  )
-
-  const handleCustomEndDateChange = useCallback(
-    (date: Date | undefined) => {
-      applyCustomRange(activeCustomDraft.startDate, date, {
-        rangeKey,
-        startDate: activeCustomDraft.startDate,
-        endDate: date,
-      })
-    },
-    [activeCustomDraft.startDate, applyCustomRange, rangeKey]
   )
 
   const handleGranularityChange = useCallback(
@@ -203,55 +121,24 @@ export function UserAnalytics() {
     [initialState.range, navigate]
   )
 
-  const handleUserSelect = useCallback(
-    (userId: number, target?: UserModelUsageTarget) => {
-      setSelectedTarget(
-        (current) => target ?? (current?.id === userId ? current : undefined)
-      )
-      void navigate({
-        replace: true,
-        search: (current) => changeUserAnalyticsUser(current, userId),
-      })
-    },
-    [navigate]
-  )
-
-  const handleSearchUserSelect = useCallback(
-    (user: UserAnalyticsUserOption) => {
-      handleUserSelect(user.id, user)
-    },
-    [handleUserSelect]
-  )
-
   return (
     <div className='flex flex-col gap-3'>
       <UserAnalyticsControls
-        selectedPresetDays={
-          customDraft?.rangeKey === rangeKey ? undefined : selectedPresetDays
-        }
-        customStartDate={activeCustomDraft.startDate}
-        customEndDate={activeCustomDraft.endDate}
-        customRangeError={activeCustomDraft.error}
-        timeZoneLabel={timeZoneLabel}
+        variant='analytics'
+        selectedPresetDays={selectedPresetDays}
         timeGranularity={timeGranularity}
         userMetric={userMetric}
         topUserLimit={topUserLimit}
-        selectedUserId={search.user_id}
-        selectedTarget={activeSelectedTarget}
         onPresetChange={handlePresetChange}
-        onCustomStartDateChange={handleCustomStartDateChange}
-        onCustomEndDateChange={handleCustomEndDateChange}
         onTimeGranularityChange={handleGranularityChange}
         onUserMetricChange={handleMetricChange}
         onTopUserLimitChange={setTopUserLimit}
-        onUserSelect={handleSearchUserSelect}
       />
       <UserCharts
         timeRange={timeRange}
         timeGranularity={timeGranularity}
         topUserLimit={topUserLimit}
         userMetric={userMetric}
-        onUserSelect={handleUserSelect}
       />
     </div>
   )

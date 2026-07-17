@@ -24,11 +24,33 @@ const analytics = readFileSync(
   new URL('./user-analytics.tsx', import.meta.url),
   'utf8'
 )
+const controls = readFileSync(
+  new URL('./user-analytics-controls.tsx', import.meta.url),
+  'utf8'
+)
 const usageUrl = new URL('./user-usage-summary.tsx', import.meta.url)
 
 describe('user dashboard section composition', () => {
   test('keeps model usage out of User Analytics', () => {
     assert.doesNotMatch(analytics, /UserModelUsageSummary/)
+  })
+
+  test('keeps User Analytics on the original compact filter bar', () => {
+    assert.match(analytics, /variant='analytics'/)
+    assert.match(controls, /function UserAnalyticsCompactControls/)
+
+    const compactControls = controls.slice(
+      controls.indexOf('function UserAnalyticsCompactControls'),
+      controls.indexOf('function UserUsageSummaryControls')
+    )
+
+    assert.match(
+      compactControls,
+      /flex items-center gap-1\.5 overflow-x-auto pb-1 sm:gap-2/
+    )
+    assert.doesNotMatch(compactControls, /<Card/)
+    assert.doesNotMatch(compactControls, /DatePicker/)
+    assert.doesNotMatch(compactControls, /Find User/)
   })
 
   test('renders model usage in the dedicated section', () => {

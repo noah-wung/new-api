@@ -21,7 +21,6 @@ import { useQuery } from '@tanstack/react-query'
 import { UserMultiple02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { VChart } from '@visactor/react-vchart'
-import type { EventParamsDefinition } from '@visactor/vchart'
 import { useTranslation } from 'react-i18next'
 import type { TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -66,7 +65,6 @@ interface UserChartsProps {
   timeGranularity: TimeGranularity
   topUserLimit: number
   userMetric: UserUsageMetric
-  onUserSelect: (userId: number) => void
 }
 
 export function UserCharts(props: UserChartsProps) {
@@ -173,16 +171,6 @@ export function UserCharts(props: UserChartsProps) {
                         background: 'transparent',
                       }}
                       option={VCHART_OPTION}
-                      onClick={
-                        isRank
-                          ? (event: EventParamsDefinition['click']) => {
-                              const userId = Number(event.datum?.UserID)
-                              if (Number.isInteger(userId) && userId > 0) {
-                                props.onUserSelect(userId)
-                              }
-                            }
-                          : undefined
-                      }
                     />
                   )
                 )}

@@ -52,6 +52,7 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { DatePicker } from '@/components/date-picker'
 import { StatusBadge } from '@/components/status-badge'
@@ -85,7 +86,20 @@ const USER_METRIC_OPTIONS: Array<{
 
 export type UserAnalyticsUserOption = UserModelUsageTarget
 
-interface UserFilterProps {
+interface UserAnalyticsCompactControlsProps {
+  variant: 'analytics'
+  selectedPresetDays?: UserAnalyticsPresetDays
+  timeGranularity: TimeGranularity
+  userMetric: UserUsageMetric
+  topUserLimit: number
+  onPresetChange: (days: UserAnalyticsPresetDays) => void
+  onTimeGranularityChange: (granularity: TimeGranularity) => void
+  onUserMetricChange: (metric: UserUsageMetric) => void
+  onTopUserLimitChange: (limit: number) => void
+}
+
+interface UserUsageSummaryControlsProps {
+  variant: 'usage-summary'
   selectedPresetDays?: UserAnalyticsPresetDays
   customStartDate?: Date
   customEndDate?: Date
@@ -99,21 +113,9 @@ interface UserFilterProps {
   onUserSelect: (user: UserAnalyticsUserOption) => void
 }
 
-type UserAnalyticsControlsProps = UserFilterProps &
-  (
-    | {
-        variant?: 'analytics'
-        timeGranularity: TimeGranularity
-        userMetric: UserUsageMetric
-        topUserLimit: number
-        onTimeGranularityChange: (granularity: TimeGranularity) => void
-        onUserMetricChange: (metric: UserUsageMetric) => void
-        onTopUserLimitChange: (limit: number) => void
-      }
-    | {
-        variant: 'usage-summary'
-      }
-  )
+type UserAnalyticsControlsProps =
+  | UserAnalyticsCompactControlsProps
+  | UserUsageSummaryControlsProps
 
 function toUserOption(user: User): UserAnalyticsUserOption {
   return {
@@ -132,10 +134,111 @@ function getUserLabel(user: UserAnalyticsUserOption): string {
   return user.username
 }
 
-export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
+function UserAnalyticsCompactControls(
+  props: UserAnalyticsCompactControlsProps
+) {
+  const { t } = useTranslation()
+
+  return (
+    <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
+      <Tabs
+        value={props.selectedPresetDays ? String(props.selectedPresetDays) : ''}
+        onValueChange={(value) => {
+          const days = Number(value)
+          if (
+            USER_ANALYTICS_PRESET_DAYS.includes(days as UserAnalyticsPresetDays)
+          ) {
+            props.onPresetChange(days as UserAnalyticsPresetDays)
+          }
+        }}
+        className='shrink-0'
+      >
+        <TabsList>
+          {TIME_RANGE_PRESETS.map((preset) => (
+            <TabsTrigger
+              key={preset.days}
+              value={String(preset.days)}
+              className='px-2.5 text-xs'
+            >
+              {t(preset.label)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      <Tabs
+        value={props.timeGranularity}
+        onValueChange={(value) =>
+          props.onTimeGranularityChange(value as TimeGranularity)
+        }
+        className='shrink-0'
+      >
+        <TabsList>
+          {TIME_GRANULARITY_OPTIONS.map((option) => (
+            <TabsTrigger
+              key={option.value}
+              value={option.value}
+              className='px-2.5 text-xs'
+            >
+              {t(option.label)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
+        {USER_METRIC_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type='button'
+            onClick={() => props.onUserMetricChange(option.value)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              props.userMetric === option.value
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            {t(option.labelKey)}
+          </button>
+        ))}
+      </div>
+
+      <Tabs
+        value={String(props.topUserLimit)}
+        onValueChange={(value) => {
+          const limit = Number(value)
+          if (
+            TOP_USER_LIMIT_OPTIONS.includes(
+              limit as (typeof TOP_USER_LIMIT_OPTIONS)[number]
+            )
+          ) {
+            props.onTopUserLimitChange(limit)
+          }
+        }}
+        className='shrink-0'
+      >
+        <TabsList>
+          <span className='text-muted-foreground px-2 text-xs font-medium whitespace-nowrap'>
+            {t('Top Users')}
+          </span>
+          {TOP_USER_LIMIT_OPTIONS.map((limit) => (
+            <TabsTrigger
+              key={limit}
+              value={String(limit)}
+              className='px-2.5 text-xs'
+            >
+              {t('Top {{count}}', { count: limit })}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+    </div>
+  )
+}
+
+function UserUsageSummaryControls(props: UserUsageSummaryControlsProps) {
   const { t } = useTranslation()
   const [keyword, setKeyword] = useState('')
-  const analyticsProps = props.variant === 'usage-summary' ? undefined : props
 
   const searchMutation = useMutation({
     mutationFn: async (value: string) => {
@@ -172,19 +275,9 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          {t(
-            props.variant === 'usage-summary'
-              ? 'User Usage Summary Filters'
-              : 'User Analytics Filters'
-          )}
-        </CardTitle>
+        <CardTitle>{t('User Usage Summary Filters')}</CardTitle>
         <CardDescription>
-          {t(
-            props.variant === 'usage-summary'
-              ? 'Select one user and time range for model usage totals.'
-              : 'Use one time range and metric across user analytics.'
-          )}
+          {t('Select one user and time range for model usage totals.')}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -265,84 +358,6 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
             </FieldDescription>
             <FieldError>{props.customRangeError}</FieldError>
           </Field>
-
-          {analyticsProps && (
-            <>
-              <Field>
-                <FieldTitle id='user-analytics-granularity'>
-                  {t('Chart Granularity')}
-                </FieldTitle>
-                <ToggleGroup
-                  aria-labelledby='user-analytics-granularity'
-                  variant='outline'
-                  size='sm'
-                  value={[analyticsProps.timeGranularity]}
-                  onValueChange={(values) => {
-                    const value = values[0] as TimeGranularity | undefined
-                    if (value) {
-                      analyticsProps.onTimeGranularityChange(value)
-                    }
-                  }}
-                >
-                  {TIME_GRANULARITY_OPTIONS.map((option) => (
-                    <ToggleGroupItem key={option.value} value={option.value}>
-                      {t(option.label)}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </Field>
-
-              <Field>
-                <FieldTitle id='user-analytics-metric'>
-                  {t('Metric')}
-                </FieldTitle>
-                <ToggleGroup
-                  aria-labelledby='user-analytics-metric'
-                  variant='outline'
-                  size='sm'
-                  value={[analyticsProps.userMetric]}
-                  onValueChange={(values) => {
-                    const value = values[0] as UserUsageMetric | undefined
-                    if (value) analyticsProps.onUserMetricChange(value)
-                  }}
-                >
-                  {USER_METRIC_OPTIONS.map((option) => (
-                    <ToggleGroupItem key={option.value} value={option.value}>
-                      {t(option.labelKey)}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </Field>
-
-              <Field>
-                <FieldTitle id='user-analytics-top-users'>
-                  {t('Top Users')}
-                </FieldTitle>
-                <ToggleGroup
-                  aria-labelledby='user-analytics-top-users'
-                  variant='outline'
-                  size='sm'
-                  value={[String(analyticsProps.topUserLimit)]}
-                  onValueChange={(values) => {
-                    const value = Number(values[0])
-                    if (
-                      TOP_USER_LIMIT_OPTIONS.includes(
-                        value as (typeof TOP_USER_LIMIT_OPTIONS)[number]
-                      )
-                    ) {
-                      analyticsProps.onTopUserLimitChange(value)
-                    }
-                  }}
-                >
-                  {TOP_USER_LIMIT_OPTIONS.map((limit) => (
-                    <ToggleGroupItem key={limit} value={String(limit)}>
-                      {t('Top {{count}}', { count: limit })}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </Field>
-            </>
-          )}
 
           <Field data-invalid={searchMutation.isError}>
             <FieldLabel htmlFor='user-analytics-user-search'>
@@ -443,4 +458,12 @@ export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
       </CardContent>
     </Card>
   )
+}
+
+export function UserAnalyticsControls(props: UserAnalyticsControlsProps) {
+  if (props.variant === 'analytics') {
+    return <UserAnalyticsCompactControls {...props} />
+  }
+
+  return <UserUsageSummaryControls {...props} />
 }
