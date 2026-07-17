@@ -39,11 +39,21 @@ const DASHBOARD_SECTIONS = [
     adminOnly: true,
     build: () => null,
   },
+  {
+    id: 'user-usage',
+    titleKey: 'User Usage Summary',
+    adminOnly: true,
+    build: () => null,
+  },
 ] as const
 
 export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number]['id']
 
-const ADMIN_ONLY_SECTIONS = new Set<string>(['users'])
+const ADMIN_ONLY_SECTIONS = new Set<string>(
+  DASHBOARD_SECTIONS.filter((section) => 'adminOnly' in section).map(
+    (section) => section.id
+  )
+)
 
 const dashboardRegistry = createSectionRegistry<
   DashboardSectionId,

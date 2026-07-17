@@ -16,7 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  lazy,
+  Suspense,
+} from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
@@ -32,7 +40,10 @@ import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
   getSavedChartPreferences,
+  rememberDashboardSectionSearch,
+  restoreDashboardSectionSearch,
   saveChartPreferences,
+  type DashboardSectionSearchMemory,
 } from './lib'
 import {
   type DashboardSectionId,
@@ -140,15 +151,20 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   users: {
     titleKey: 'User Analytics',
   },
+  'user-usage': {
+    titleKey: 'User Usage Summary',
+  },
 }
 
 export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
+  const search = route.useSearch()
   const userRole = useAuthStore((state) => state.auth.user?.role)
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
+  const sectionSearchMemory = useRef<DashboardSectionSearchMemory>({})
 
   const [modelData, setModelData] = useState<QuotaDataItem[]>([])
   const [dataLoading, setDataLoading] = useState(false)
@@ -188,18 +204,39 @@ export function Dashboard() {
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          (section !== 'users' && section !== 'user-usage' ? true : isAdmin)
       ),
     [isAdmin]
   )
+
+  useEffect(() => {
+    sectionSearchMemory.current = rememberDashboardSectionSearch(
+      sectionSearchMemory.current,
+      activeSection,
+      search
+    )
+  }, [activeSection, search])
+
   const handleSectionChange = useCallback(
     (section: string) => {
+      const nextSection = section as DashboardSectionId
+      sectionSearchMemory.current = rememberDashboardSectionSearch(
+        sectionSearchMemory.current,
+        activeSection,
+        search
+      )
       void navigate({
         to: '/dashboard/$section',
-        params: { section: section as DashboardSectionId },
+        params: { section: nextSection },
+        search: restoreDashboardSectionSearch(
+          sectionSearchMemory.current,
+          nextSection
+        ),
       })
     },
-    [navigate]
+    [activeSection, navigate, search]
   )
   const showSectionTabs =
     activeSection !== 'overview' && visibleSections.length > 1

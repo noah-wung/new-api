@@ -36,6 +36,11 @@ export { processChartData, processUserChartData } from './charts'
 export { safeDivide, calculateDashboardStats } from './stats'
 export { getPreviewText } from './text'
 export {
+  rememberDashboardSectionSearch,
+  restoreDashboardSectionSearch,
+} from './dashboard-section-search'
+export type { DashboardSectionSearchMemory } from './dashboard-section-search'
+export {
   changeUserAnalyticsMetric,
   changeUserAnalyticsUser,
   createBrowserLocalDayRange,
