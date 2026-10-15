@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -57,57 +56,8 @@ type otlpLogsRequest struct {
 	} `json:"resourceLogs"`
 }
 
-type claudeQueuedEvent struct {
-	Event         UsageEvent `json:"event"`
-	ClientVersion string     `json:"client_version"`
-	Origin        string     `json:"upstream_origin"`
-}
-
-type claudeRoutePolicy struct {
-	gateways map[string]bool
-	external map[string]bool
-}
-
-func newClaudeRoutePolicy(cfg Config) (*claudeRoutePolicy, error) {
-	p := &claudeRoutePolicy{gateways: make(map[string]bool), external: make(map[string]bool)}
-	for _, value := range append([]string{cfg.Server}, cfg.GatewayURLs...) {
-		origin, err := claudeRouteOrigin(value)
-		if err != nil {
-			return nil, errors.New("invalid gateway URL in reporter configuration")
-		}
-		p.gateways[origin] = true
-	}
-	// An empty allowlist permits only the official API. Third-party gateways
-	// require an explicit external route declaration, never a model-name guess.
-	urls := cfg.ClaudeExternalURLs
-	if urls == nil {
-		urls = []string{"https://api.anthropic.com"}
-	}
-	for _, value := range urls {
-		origin, err := claudeRouteOrigin(value)
-		if err != nil {
-			return nil, errors.New("invalid external Claude URL in reporter configuration")
-		}
-		p.external[origin] = true
-	}
-	return p, nil
-}
-
 func NormalizeClaudeUpstreamURL(value string) (string, error) {
-	return claudeRouteOrigin(value)
-}
-
-func claudeRouteOrigin(value string) (string, error) {
-	value = strings.TrimSpace(value)
-	u, err := url.Parse(value)
-	if err != nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		return "", errors.New("route must be an HTTP(S) URL without credentials, query, or fragment")
-	}
-	origin, err := gatewayOrigin(value)
-	if err != nil || strings.ContainsAny(origin, ",= \t\r\n") {
-		return "", errors.New("invalid upstream origin")
-	}
-	return origin, nil
+	return NormalizeUpstreamURL(value)
 }
 
 func claudeListenAddress(cfg Config) (string, error) {
@@ -127,7 +77,7 @@ func claudeListenAddress(cfg Config) (string, error) {
 // normalizeClaudeRequest retains only usage metadata; arbitrary attributes,
 // event bodies and source identities never enter the durable queue. Only the
 // normalized origin is retained locally so queued events can be re-filtered.
-func normalizeClaudeRequest(record otlpLogRecord, resource []otlpAttribute, policy *claudeRoutePolicy, window clientAcceptWindow) (*claudeQueuedEvent, error) {
+func normalizeClaudeRequest(record otlpLogRecord, resource []otlpAttribute, policy *RoutePolicy, window clientAcceptWindow) (*CollectedEvent, error) {
 	attributes := make(map[string]otlpValue)
 	for _, attr := range resource {
 		attributes[attr.Key] = attr.Value
@@ -145,15 +95,16 @@ func normalizeClaudeRequest(record otlpLogRecord, resource []otlpAttribute, poli
 	if name != "claude_code.api_request" && name != "api_request" {
 		return nil, nil
 	}
-	origin, err := claudeRouteOrigin(attributes[ClaudeUpstreamAttribute].text())
+	origin, err := NormalizeUpstreamURL(attributes[ClaudeUpstreamAttribute].text())
 	if err != nil {
 		return nil, errors.New("missing or invalid upstream declaration")
 	}
-	if policy.gateways[origin] {
-		return nil, nil
+	external, err := policy.Allows(origin)
+	if err != nil {
+		return nil, err
 	}
-	if !policy.external[origin] {
-		return nil, errors.New("upstream is not an approved external route")
+	if !external {
+		return nil, nil
 	}
 	var timestamp time.Time
 	if record.TimeUnixNano != "" {
@@ -221,7 +172,7 @@ func normalizeClaudeRequest(record otlpLogRecord, resource []otlpAttribute, poli
 	if len(version) > 64 {
 		version = ""
 	}
-	return &claudeQueuedEvent{
+	return &CollectedEvent{
 		Event: UsageEvent{
 			EventID:   sha256Hex(SourceClaudeCode + ":" + origin + ":" + identity),
 			SessionID: sha256Hex(session), OccurredAt: timestamp.Unix(), SourceModelName: model,

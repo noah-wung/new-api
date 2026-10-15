@@ -20,7 +20,7 @@ func TestExpandReporterPathSupportsWindowsHomeSeparator(t *testing.T) {
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 	for _, path := range []string{"~/settings.json", `~\settings.json`} {
-		actual, err := expandPath(path)
+		actual, err := usagereporter.ExpandPath(path)
 		require.NoError(t, err)
 		assert.Equal(t, filepath.Join(home, "settings.json"), actual)
 	}
@@ -218,4 +218,40 @@ func TestReporterCommandWritesBackgroundDiagnosticsToLog(t *testing.T) {
 	assert.Contains(t, string(content), "previous run\n")
 	assert.Contains(t, string(content), "no new usage events")
 	assert.NotContains(t, string(content), "fixture-credential")
+}
+
+func TestCodexReporterRetriesIncompleteACKFromSharedQueue(t *testing.T) {
+	var uploads []usagereporter.ReportPayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload usagereporter.ReportPayload
+		require.NoError(t, common.DecodeJson(r.Body, &payload))
+		uploads = append(uploads, payload)
+		ack := usagereporter.ReportAcknowledgement{}
+		if len(uploads) > 1 {
+			ack.AcceptedEventIDs = []string{payload.Events[0].EventID}
+		}
+		body, err := common.Marshal(map[string]any{"success": true, "data": ack})
+		require.NoError(t, err)
+		_, err = w.Write(body)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+	root := t.TempDir()
+	sessions := filepath.Join(root, "sessions")
+	require.NoError(t, os.MkdirAll(sessions, 0o700))
+	content := `{"timestamp":"2026-07-15T00:00:00Z","type":"session_meta","payload":{"id":"direct","model_provider":"openai"}}
+{"timestamp":"2026-07-15T00:00:01Z","type":"turn_context","payload":{"turn_id":"turn","model":"gpt-5"}}
+{"timestamp":"2026-07-15T00:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(sessions, "session.jsonl"), []byte(content), 0o600))
+	args := []string{"--server", server.URL, "--credential", "fixture", "--codex-dir", sessions, "--state", filepath.Join(root, "state.json")}
+	first := runReporterCommand(t, args...)
+	assert.Contains(t, first, "reported 1 events (0 accepted, 0 duplicate, 0 rejected)")
+	second := runReporterCommand(t, args...)
+	assert.Contains(t, second, "reported 1 events (1 accepted, 0 duplicate, 0 rejected)")
+	require.Len(t, uploads, 2)
+	assert.Equal(t, uploads[0].Events, uploads[1].Events, "scan progress cannot discard events missing from a server ACK")
+	third := runReporterCommand(t, args...)
+	assert.Contains(t, third, "no new usage events")
+	assert.Len(t, uploads, 2)
 }

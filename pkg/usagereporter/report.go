@@ -2,6 +2,7 @@ package usagereporter
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -36,16 +37,16 @@ type reportResponse struct {
 
 func UploadReport(serverURL string, credential string, payload ReportPayload) (*ReportAcknowledgement, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
-	return uploadReportWithClient(client, serverURL, credential, payload)
+	return uploadReportWithClient(context.Background(), client, serverURL, credential, payload)
 }
 
-func uploadReportWithClient(client *http.Client, serverURL string, credential string, payload ReportPayload) (*ReportAcknowledgement, error) {
+func uploadReportWithClient(ctx context.Context, client *http.Client, serverURL string, credential string, payload ReportPayload) (*ReportAcknowledgement, error) {
 	body, err := common.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 	endpoint := strings.TrimRight(strings.TrimSpace(serverURL), "/") + "/api/external-usage/report"
-	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

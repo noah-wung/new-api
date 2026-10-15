@@ -19,19 +19,8 @@ import (
 
 const SourceCodex = "codex"
 
-type UsageEvent struct {
-	EventID               string `json:"event_id"`
-	SessionID             string `json:"session_id"`
-	OccurredAt            int64  `json:"occurred_at"`
-	SourceModelName       string `json:"source_model_name"`
-	InputTokens           int    `json:"input_tokens"`
-	CachedInputTokens     int    `json:"cached_input_tokens"`
-	OutputTokens          int    `json:"output_tokens"`
-	ReasoningOutputTokens int    `json:"reasoning_output_tokens"`
-	TotalTokens           int    `json:"total_tokens"`
-}
-
 type CollectResult struct {
+	routes                 map[string]codexRouteEvidence
 	ClientVersion          string
 	Events                 []UsageEvent
 	NextState              *State
@@ -65,7 +54,14 @@ type codexEventMsgPayload struct {
 	} `json:"info"`
 }
 
+type codexRouteEvidence struct {
+	Origin string
+	ID     string
+}
+
 type pendingCodexUsageEvent struct {
+	RouteID               string
+	Origin                string
 	SessionHash           string
 	OccurredAt            int64
 	RunningTotalTokens    int
@@ -97,6 +93,7 @@ func CollectCodexUsageWithWindow(root string, state *State, acceptWindowDays int
 		return nil, err
 	}
 	result := &CollectResult{
+		routes:    make(map[string]codexRouteEvidence),
 		Events:    make([]UsageEvent, 0),
 		NextState: nextState,
 	}
@@ -116,24 +113,6 @@ func CollectCodexUsageWithWindow(root string, state *State, acceptWindowDays int
 		result.ClientVersion = "codex-reporter"
 	}
 	return result, nil
-}
-
-type clientAcceptWindow struct {
-	Enabled     bool
-	CutoffUnix  int64
-	FutureLimit int64
-}
-
-func buildClientAcceptWindow(acceptWindowDays int) clientAcceptWindow {
-	if acceptWindowDays <= 0 {
-		return clientAcceptWindow{}
-	}
-	now := time.Now()
-	return clientAcceptWindow{
-		Enabled:     true,
-		CutoffUnix:  now.Add(-time.Duration(acceptWindowDays) * 24 * time.Hour).Unix(),
-		FutureLimit: now.Unix() + 300,
-	}
 }
 
 func collectCodexUsageFile(path string, current *State, next *State, window clientAcceptWindow, seenEventIDs map[string]struct{}, resetSessionTotals map[string]struct{}, filter *codexGatewayFilter, result *CollectResult) ([]UsageEvent, string, FileState, error) {
@@ -200,7 +179,7 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 					newSessionID = strings.TrimSpace(payload.ID)
 				}
 				if newSessionID != "" {
-					flushPendingCodexUsageEvents(&events, &pendingEvents, current, turnID, model, window, seenEventIDs)
+					flushPendingCodexUsageEvents(&events, &pendingEvents, current, turnID, model, window, seenEventIDs, result.routes)
 					sessionID = newSessionID
 					turnID, model = restoreSessionContext(next, sessionID, "", "")
 				}
@@ -218,7 +197,7 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 				}
 				turnID = strings.TrimSpace(payload.TurnID)
 				model = strings.TrimSpace(payload.Model)
-				flushPendingCodexUsageEvents(&events, &pendingEvents, current, turnID, model, window, seenEventIDs)
+				flushPendingCodexUsageEvents(&events, &pendingEvents, current, turnID, model, window, seenEventIDs, result.routes)
 				persistSessionContext(next, sessionID, turnID, model)
 			case "event_msg":
 				var payload codexEventMsgPayload
@@ -254,6 +233,8 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 				}
 				if strings.TrimSpace(model) == "" {
 					pendingEvents = append(pendingEvents, pendingCodexUsageEvent{
+						Origin:                filter.origins[modelProvider],
+						RouteID:               sha256Hex(modelProvider),
 						SessionHash:           sessionHash,
 						OccurredAt:            occurredAt,
 						RunningTotalTokens:    total.TotalTokens,
@@ -265,7 +246,7 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 					})
 					break
 				}
-				appendCodexUsageEvent(&events, current, sessionHash, turnID, occurredAt, total.TotalTokens, model, delta, window, seenEventIDs)
+				appendCodexUsageEvent(&events, current, sessionHash, turnID, occurredAt, total.TotalTokens, model, delta, window, seenEventIDs, codexRouteEvidence{Origin: filter.origins[modelProvider], ID: sha256Hex(modelProvider)}, result.routes)
 			}
 		}
 		if err != nil {
@@ -276,7 +257,7 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 		}
 	}
 
-	flushPendingCodexUsageEvents(&events, &pendingEvents, current, turnID, model, window, seenEventIDs)
+	flushPendingCodexUsageEvents(&events, &pendingEvents, current, turnID, model, window, seenEventIDs, result.routes)
 	fileState.Offset = currentOffset
 	fileState.SessionID = sessionID
 	fileState.CLIVersion = cliVersion
@@ -336,7 +317,7 @@ func persistSessionContext(state *State, sessionID string, turnID string, model 
 	}
 }
 
-func appendCodexUsageEvent(events *[]UsageEvent, current *State, sessionHash string, turnID string, occurredAt int64, runningTotalTokens int, model string, delta TokenUsageTotals, window clientAcceptWindow, seenEventIDs map[string]struct{}) {
+func appendCodexUsageEvent(events *[]UsageEvent, current *State, sessionHash string, turnID string, occurredAt int64, runningTotalTokens int, model string, delta TokenUsageTotals, window clientAcceptWindow, seenEventIDs map[string]struct{}, route codexRouteEvidence, routes map[string]codexRouteEvidence) {
 	if window.Enabled && (occurredAt < window.CutoffUnix || occurredAt > window.FutureLimit) {
 		return
 	}
@@ -359,6 +340,9 @@ func appendCodexUsageEvent(events *[]UsageEvent, current *State, sessionHash str
 	if sourceModelName == "" {
 		sourceModelName = "unknown"
 	}
+	if routes != nil {
+		routes[eventID] = route
+	}
 	*events = append(*events, UsageEvent{
 		EventID:               eventID,
 		SessionID:             sessionHash,
@@ -372,7 +356,7 @@ func appendCodexUsageEvent(events *[]UsageEvent, current *State, sessionHash str
 	})
 }
 
-func flushPendingCodexUsageEvents(events *[]UsageEvent, pending *[]pendingCodexUsageEvent, current *State, turnID string, model string, window clientAcceptWindow, seenEventIDs map[string]struct{}) {
+func flushPendingCodexUsageEvents(events *[]UsageEvent, pending *[]pendingCodexUsageEvent, current *State, turnID string, model string, window clientAcceptWindow, seenEventIDs map[string]struct{}, routes map[string]codexRouteEvidence) {
 	if len(*pending) == 0 {
 		return
 	}
@@ -383,7 +367,7 @@ func flushPendingCodexUsageEvents(events *[]UsageEvent, pending *[]pendingCodexU
 			OutputTokens:          item.OutputTokens,
 			ReasoningOutputTokens: item.ReasoningOutputTokens,
 			TotalTokens:           item.TotalTokens,
-		}, window, seenEventIDs)
+		}, window, seenEventIDs, codexRouteEvidence{Origin: item.Origin, ID: item.RouteID}, routes)
 	}
 	*pending = (*pending)[:0]
 }

@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBackfillAcceptWindowDaysFromServer_UpdatesMissingValue(t *testing.T) {
@@ -89,4 +92,18 @@ func TestBackfillAcceptWindowDaysFromServer_RejectsMissingServerValue(t *testing
 	if changed {
 		t.Fatal("changed = true, want false")
 	}
+}
+
+func TestBackfillAcceptWindowAppliesToNewClientSources(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		assert.Equal(t, "https://example.test/api/status", r.URL.String())
+		assert.Empty(t, r.Header.Get("Authorization"), "public status must not receive the device credential")
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"success":true,"data":{"external_usage_accept_window_days":90}}`))}, nil
+	})}
+	cfg := Config{Server: "https://example.test", Source: "future_client", Credential: "private-fixture"}
+	changed, err := BackfillAcceptWindowDaysFromServer(client, &cfg)
+	require.NoError(t, err)
+	assert.True(t, changed)
+	assert.Equal(t, 90, cfg.AcceptWindowDays)
+	assert.Equal(t, "future_client", cfg.Source)
 }

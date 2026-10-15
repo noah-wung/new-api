@@ -2,8 +2,6 @@ package usagereporter
 
 import (
 	"errors"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,12 +19,13 @@ type CodexCollectionPolicy struct {
 
 type codexGatewayFilter struct {
 	enabled   bool
+	origins   map[string]string
 	providers map[string]bool // true means already metered by the gateway
 }
 
 func loadCodexGatewayFilter(root, server string, policies []CodexCollectionPolicy) (*codexGatewayFilter, error) {
-	origins := make(map[string]struct{})
-	filter := &codexGatewayFilter{providers: make(map[string]bool)}
+	gatewayURLs := make([]string, 0)
+	filter := &codexGatewayFilter{providers: make(map[string]bool), origins: make(map[string]string)}
 	urls := []string{server}
 	configPath := filepath.Join(filepath.Dir(filepath.Clean(root)), "config.toml")
 	for _, policy := range policies {
@@ -49,11 +48,15 @@ func loadCodexGatewayFilter(root, server string, policies []CodexCollectionPolic
 		if err != nil {
 			return nil, errors.New("invalid gateway URL in reporter configuration")
 		}
-		origins[origin] = struct{}{}
+		gatewayURLs = append(gatewayURLs, origin)
 		filter.enabled = true
 	}
 	if !filter.enabled {
 		return filter, nil
+	}
+	policy, err := NewRoutePolicy("", gatewayURLs, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode only routing fields. Never retain keys, headers, or auth commands.
@@ -81,8 +84,12 @@ func loadCodexGatewayFilter(root, server string, policies []CodexCollectionPolic
 		if err != nil {
 			return nil, errors.New("invalid base URL in Codex provider configuration")
 		}
-		_, excluded := origins[origin]
-		filter.providers[provider] = excluded
+		allowed, err := policy.Allows(origin)
+		if err != nil {
+			return nil, err
+		}
+		filter.providers[provider] = !allowed
+		filter.origins[provider] = origin
 	}
 	if !filter.providers["openai"] {
 		baseURL := config.OpenAIBaseURL
@@ -96,21 +103,12 @@ func loadCodexGatewayFilter(root, server string, policies []CodexCollectionPolic
 		if err != nil {
 			return nil, errors.New("invalid OpenAI base URL in Codex provider configuration")
 		}
-		_, excluded := origins[origin]
-		filter.providers["openai"] = excluded
+		allowed, err := policy.Allows(origin)
+		if err != nil {
+			return nil, err
+		}
+		filter.providers["openai"] = !allowed
+		filter.origins["openai"] = origin
 	}
 	return filter, nil
-}
-
-func gatewayOrigin(value string) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(value))
-	if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
-		return "", errors.New("expected an HTTP or HTTPS URL")
-	}
-	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
-	port := parsed.Port()
-	if port == "" || parsed.Scheme == "http" && port == "80" || parsed.Scheme == "https" && port == "443" {
-		return parsed.Scheme + "://" + host, nil
-	}
-	return parsed.Scheme + "://" + net.JoinHostPort(host, port), nil
 }

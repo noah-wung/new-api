@@ -251,7 +251,7 @@ func TestClaudeUploadsEveryFiveMinutesAndRetriesWithoutRecounting(t *testing.T) 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		var diagnostics bytes.Buffer
-		go receiver.runUploads(ctx, &diagnostics)
+		go receiver.RunUploads(ctx, &diagnostics)
 		synctest.Wait()
 		require.Len(t, uploads, 1, "pending events are attempted once at startup")
 		assert.Contains(t, diagnostics.String(), "queued events retained")

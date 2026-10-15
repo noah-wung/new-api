@@ -83,7 +83,7 @@ func (s *State) Save(path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, content, 0o644)
+	return writePrivateFile(path, content)
 }
 
 func (s *State) Clone() *State {

@@ -33,7 +33,7 @@ func claudeTestRecord(t *testing.T, values map[string]any) otlpLogRecord {
 }
 
 func TestClaudeRequestTokenAccountingAndRouting(t *testing.T) {
-	policy, err := newClaudeRoutePolicy(Config{Server: "https://token.example", GatewayURLs: []string{"http://172.16.0.37:3000"}})
+	policy, err := NewRoutePolicy("https://token.example", []string{"http://172.16.0.37:3000"}, []string{"https://api.anthropic.com"})
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		name    string
@@ -80,7 +80,7 @@ func TestClaudeRequestTokenAccountingAndRouting(t *testing.T) {
 }
 
 func TestClaudeIdentitiesSurviveRetryAndSessionResume(t *testing.T) {
-	policy, err := newClaudeRoutePolicy(Config{Server: "https://token.example"})
+	policy, err := NewRoutePolicy("https://token.example", nil, []string{"https://api.anthropic.com"})
 	require.NoError(t, err)
 	record := claudeTestRecord(t, nil)
 	first, err := normalizeClaudeRequest(record, nil, policy, clientAcceptWindow{})
@@ -112,7 +112,7 @@ func TestClaudeIdentitiesSurviveRetryAndSessionResume(t *testing.T) {
 }
 
 func TestClaudeOTLPTypesAndWindow(t *testing.T) {
-	policy, err := newClaudeRoutePolicy(Config{Server: "https://token.example"})
+	policy, err := NewRoutePolicy("https://token.example", nil, []string{"https://api.anthropic.com"})
 	require.NoError(t, err)
 	var record otlpLogRecord
 	content := fmt.Sprintf(`{"body":{"stringValue":"claude_code.api_request"},"timeUnixNano":"%d","attributes":[{"key":"input_tokens","value":{"intValue":1000000}},{"key":"output_tokens","value":{"doubleValue":40}},{"key":"model","value":{"stringValue":"claude-test"}},{"key":"request_id","value":{"stringValue":"req-types"}}]}`, time.Now().UnixNano())
@@ -129,4 +129,24 @@ func TestClaudeOTLPTypesAndWindow(t *testing.T) {
 	record.TimeUnixNano = "not-a-timestamp"
 	_, err = normalizeClaudeRequest(record, resource, policy, buildClientAcceptWindow(90))
 	assert.Error(t, err)
+}
+
+func TestSharedRoutingPreservesExistingClaudeOriginIdentity(t *testing.T) {
+	for _, tc := range []struct{ url, legacyOrigin string }{
+		{"http://[::1]:80/v1", "http://::1"},
+		{"https://api.external.example:0443/v1", "https://api.external.example:0443"},
+	} {
+		t.Run(tc.url, func(t *testing.T) {
+			policy, err := NewRoutePolicy("https://token.example", nil, []string{tc.url})
+			require.NoError(t, err)
+			event, err := normalizeClaudeRequest(claudeTestRecord(t, map[string]any{ClaudeUpstreamAttribute: tc.url}), nil, policy, clientAcceptWindow{})
+			require.NoError(t, err)
+			require.NotNil(t, event)
+			assert.Equal(t, sha256Hex(SourceClaudeCode+":"+tc.legacyOrigin+":request:request-1"), event.Event.EventID)
+			assert.Equal(t, tc.legacyOrigin, event.Origin, "normalization used by existing event identities is a compatibility contract")
+			again, err := NormalizeUpstreamURL(event.Origin)
+			require.NoError(t, err)
+			assert.Equal(t, event.Origin, again)
+		})
+	}
 }

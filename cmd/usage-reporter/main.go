@@ -34,7 +34,7 @@ func runReporter() (runErr error) {
 	source := flag.String("source", usagereporter.SourceCodex, "Usage source to report")
 	codexDir := flag.String("codex-dir", "~/.codex/sessions", "Codex sessions directory")
 	statePath := flag.String("state", "~/.new-api-usage-reporter/state.json", "Reporter state file")
-	serveClaude := flag.Bool("serve", false, "Run the Claude Code OTLP HTTP/JSON receiver until interrupted")
+	serve := flag.Bool("serve", false, "Run a streaming usage collector until interrupted")
 	configureClaude := flag.Bool("configure-claude", false, "Merge telemetry into Claude user settings and exit")
 	claudeSettings := flag.String("claude-settings", "", "Claude user settings.json (defaults to CLAUDE_CONFIG_DIR/settings.json or ~/.claude/settings.json)")
 	claudeUpstream := flag.String("claude-upstream", "", "Explicit effective upstream URL for the Claude telemetry profile")
@@ -42,7 +42,7 @@ func runReporter() (runErr error) {
 	installToken := flag.String("install-token", "", "One-time Claude installer token")
 	flag.Parse()
 	if *logPath != "" {
-		path, err := expandPath(*logPath)
+		path, err := usagereporter.ExpandPath(*logPath)
 		if err != nil {
 			return err
 		}
@@ -64,7 +64,7 @@ func runReporter() (runErr error) {
 		if *configPath == "" || *server == "" || *installToken == "" {
 			return errors.New("--install-claude requires --server, --install-token and --config")
 		}
-		path, err := expandPath(*configPath)
+		path, err := usagereporter.ExpandPath(*configPath)
 		if err != nil {
 			return err
 		}
@@ -80,7 +80,7 @@ func runReporter() (runErr error) {
 			}
 			settings = filepath.Join(dir, "settings.json")
 		}
-		settings, err = expandPath(settings)
+		settings, err = usagereporter.ExpandPath(settings)
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func runReporter() (runErr error) {
 	cfg := overrideConfig
 	if trimmedConfigPath := strings.TrimSpace(*configPath); trimmedConfigPath != "" {
 		var err error
-		expandedConfigPath, err = expandPath(trimmedConfigPath)
+		expandedConfigPath, err = usagereporter.ExpandPath(trimmedConfigPath)
 		if err != nil {
 			return err
 		}
@@ -123,7 +123,7 @@ func runReporter() (runErr error) {
 		if expandedConfigPath == "" {
 			return errors.New("--config is required when preserving gateway policy")
 		}
-		previousPath, err := expandPath(*preservePolicyFrom)
+		previousPath, err := usagereporter.ExpandPath(*preservePolicyFrom)
 		if err != nil {
 			return err
 		}
@@ -143,7 +143,7 @@ func runReporter() (runErr error) {
 		if cfg.Source != usagereporter.SourceClaudeCode || expandedConfigPath == "" {
 			return errors.New("--configure-claude requires --config with source claude_code")
 		}
-		if *serveClaude {
+		if *serve {
 			return errors.New("--configure-claude and --serve must be run separately")
 		}
 		if cfg.ClaudeReceiverToken == "" {
@@ -164,7 +164,7 @@ func runReporter() (runErr error) {
 			}
 			settingsPath = filepath.Join(settingsDir, "settings.json")
 		}
-		settingsPath, err := expandPath(settingsPath)
+		settingsPath, err := usagereporter.ExpandPath(settingsPath)
 		if err != nil {
 			return err
 		}
@@ -186,116 +186,7 @@ func runReporter() (runErr error) {
 		}
 	}
 
-	if cfg.Source == usagereporter.SourceClaudeCode {
-		if !*serveClaude {
-			return errors.New("Claude Code collection requires --serve (OTLP HTTP/JSON); transcript scanning is not enabled")
-		}
-		expandedStatePath, err := expandPath(cfg.StatePath)
-		if err != nil {
-			return err
-		}
-		cfg.StatePath = expandedStatePath
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		return usagereporter.RunClaudeReceiver(ctx, cfg, os.Stderr)
-	}
-	if *serveClaude {
-		return errors.New("--serve requires source claude_code")
-	}
-
-	expandedCodexDir, err := expandPath(cfg.CodexDir)
-	if err != nil {
-		return err
-	}
-	expandedStatePath, err := expandPath(cfg.StatePath)
-	if err != nil {
-		return err
-	}
-	releaseLock, err := usagereporter.AcquireRunLock(expandedStatePath)
-	if err != nil {
-		if errors.Is(err, usagereporter.ErrReporterAlreadyRunning) {
-			fmt.Println("reporter already running")
-			return nil
-		}
-		return err
-	}
-	defer func() {
-		if releaseErr := releaseLock(); releaseErr != nil && !os.IsNotExist(releaseErr) {
-			_, _ = fmt.Fprintf(os.Stderr, "warning: could not release reporter lock: %v\n", releaseErr)
-		}
-	}()
-
-	state, err := usagereporter.LoadState(expandedStatePath)
-	if err != nil {
-		return err
-	}
-	state = state.PrepareForServer(cfg.Server)
-	expandedCodexConfigPath, err := expandPath(cfg.CodexConfigPath)
-	if err != nil {
-		return err
-	}
-	policy := usagereporter.CodexCollectionPolicy{
-		GatewayURLs:       append([]string{cfg.Server}, cfg.GatewayURLs...),
-		ExcludedProviders: cfg.ExcludedCodexProviders,
-		ConfigPath:        expandedCodexConfigPath,
-	}
-	result, err := usagereporter.CollectUsage(cfg.Source, expandedCodexDir, state, cfg.AcceptWindowDays, policy)
-	if err != nil {
-		return err
-	}
-	if result.ExcludedGatewayEvents > 0 {
-		fmt.Printf("excluded %d gateway-metered usage events\n", result.ExcludedGatewayEvents)
-	}
-	if result.DeferredProviderEvents > 0 {
-		fmt.Fprintf(os.Stderr, "warning: deferred %d usage events with unresolved providers; configure provider routes before reporting\n", result.DeferredProviderEvents)
-	}
-	if len(result.Events) == 0 {
-		// No external events need a server ACK. Persist locally filtered progress
-		// as well, so the next run keeps the correct cumulative baseline.
-		result.NextState.Server = strings.TrimSpace(cfg.Server)
-		if err := result.NextState.Save(expandedStatePath); err != nil {
-			return err
-		}
-		fmt.Println("no new usage events")
-		return nil
-	}
-
-	ack, err := usagereporter.UploadReport(cfg.Server, cfg.Credential, usagereporter.ReportPayload{
-		Source:        cfg.Source,
-		ClientVersion: result.ClientVersion,
-		Events:        result.Events,
-	})
-	if err != nil {
-		return err
-	}
-	usagereporter.ApplyAcknowledgements(state, result.NextState, ack)
-	state.Server = strings.TrimSpace(cfg.Server)
-	if err := state.Save(expandedStatePath); err != nil {
-		return err
-	}
-
-	fmt.Printf("reported %d events (%d accepted, %d duplicate, %d rejected)\n",
-		len(result.Events),
-		len(ack.AcceptedEventIDs),
-		len(ack.DuplicateEventIDs),
-		len(ack.Rejected),
-	)
-	return nil
-}
-
-func expandPath(path string) (string, error) {
-	if path == "" || path[0] != '~' {
-		return path, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	if path == "~" {
-		return home, nil
-	}
-	if !strings.HasPrefix(path, "~/") && !strings.HasPrefix(path, `~\`) {
-		return "", errors.New("only the current user's home directory can be expanded")
-	}
-	return filepath.Join(home, path[2:]), nil
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return usagereporter.RunClient(ctx, cfg, *serve, os.Stdout, os.Stderr)
 }

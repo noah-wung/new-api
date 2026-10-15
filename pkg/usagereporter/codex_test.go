@@ -2,6 +2,7 @@ package usagereporter
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -570,7 +571,7 @@ func TestUploadReportPostsExpectedPayload(t *testing.T) {
 		}),
 	}
 
-	ack, err := uploadReportWithClient(client, "https://example.test", "eur_test", ReportPayload{
+	ack, err := uploadReportWithClient(context.Background(), client, "https://example.test", "eur_test", ReportPayload{
 		Source:        "codex",
 		ClientVersion: "0.142.2",
 		Events: []UsageEvent{

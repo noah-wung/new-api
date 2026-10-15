@@ -1,6 +1,7 @@
 package usagereporter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -184,4 +185,21 @@ func resolveRelativePath(baseDir string, value string) string {
 
 func serverIdentity(value string) string {
 	return strings.TrimRight(strings.TrimSpace(value), "/")
+}
+
+func ExpandPath(path string) (string, error) {
+	if path == "" || path[0] != '~' {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if path == "~" {
+		return home, nil
+	}
+	if !strings.HasPrefix(path, "~/") && !strings.HasPrefix(path, `~\`) {
+		return "", errors.New("only the current user's home directory can be expanded")
+	}
+	return filepath.Join(home, path[2:]), nil
 }

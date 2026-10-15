@@ -22,15 +22,16 @@ func ConfigureClaudeTelemetry(cfg Config, path, upstream string) error {
 	if len(cfg.ClaudeReceiverToken) < 32 || strings.ContainsAny(cfg.ClaudeReceiverToken, " \t\r\n,") {
 		return errors.New("configure a valid claude_receiver_token first")
 	}
-	origin, err := claudeRouteOrigin(upstream)
+	origin, err := NormalizeUpstreamURL(upstream)
 	if err != nil || strings.ContainsAny(origin, ",= \t\r\n") {
 		return errors.New("an explicit --claude-upstream URL is required")
 	}
-	policy, err := newClaudeRoutePolicy(cfg)
+	reporting := claudeReportingConfig(cfg)
+	policy, err := NewRoutePolicy(reporting.Server, reporting.GatewayURLs, reporting.ExternalURLs)
 	if err != nil {
 		return err
 	}
-	if !policy.external[origin] && !policy.gateways[origin] {
+	if _, err := policy.Allows(origin); err != nil {
 		return errors.New("declare the upstream in claude_external_urls or gateway_urls first")
 	}
 	settings := make(map[string]json.RawMessage)
@@ -55,12 +56,12 @@ func ConfigureClaudeTelemetry(cfg Config, path, upstream string) error {
 	if configuredURL == "" {
 		configuredURL = "https://api.anthropic.com"
 	}
-	configuredOrigin, err := claudeRouteOrigin(configuredURL)
+	configuredOrigin, err := NormalizeUpstreamURL(configuredURL)
 	if err != nil || configuredOrigin != origin {
 		return errors.New("declared upstream differs from Claude user settings; configure routing before telemetry")
 	}
 	if processURL := os.Getenv("ANTHROPIC_BASE_URL"); processURL != "" {
-		processOrigin, err := claudeRouteOrigin(processURL)
+		processOrigin, err := NormalizeUpstreamURL(processURL)
 		if err != nil || processOrigin != origin {
 			return errors.New("declared upstream differs from the launch environment")
 		}

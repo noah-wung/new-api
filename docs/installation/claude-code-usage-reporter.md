@@ -1,6 +1,6 @@
 # Claude Code 客户端自动用量上报
 
-`usage-reporter` 支持接收官方 Claude Code CLI 和官方 VS Code 扩展的 OpenTelemetry 请求事件，使用 `claude_code` 来源写入 new-api 外部用量统计。它与 Codex 共用二进制和上报 API，使用独立配置、进程及本机接收凭据。外部上报不扣 Quota，也不写入网关消费日志。
+`usage-reporter` 支持接收官方 Claude Code CLI 和官方 VS Code 扩展的 OpenTelemetry 请求事件，使用 `claude_code` 来源写入 new-api 外部用量统计。它与 Codex 共用二进制、路由策略、持久队列实现和上报流程，使用独立配置、进程及本机接收凭据。外部上报不扣 Quota，也不写入网关消费日志。
 
 本机持续接收事件，每 5 分钟向网关批量上报，与 Codex 采集器保持一致。只转换 `claude_code.api_request`，不扫描历史 transcript、不读取 Claude 登录凭据，也不将 OTel metrics 或父会话累计值再次计入。子 agent 发出的独立 API 请求按相同规则采集。CLI 和扩展必须支持官方文档列出的请求事件与 `http/json` exporter。
 
