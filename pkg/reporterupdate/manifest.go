@@ -4,6 +4,7 @@ package reporterupdate
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -18,7 +19,11 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-var Version = "1.0.0"
+//go:embed VERSION
+var Version string
+
+func init() { Version = strings.TrimSpace(Version) }
+
 var Commit = "development"
 var BuildReleaseID = "development"
 

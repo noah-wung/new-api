@@ -295,6 +295,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		externalUsageRoute := apiRouter.Group("/external-usage")
 		{
+			externalUsageRoute.GET("/reporter/version", middleware.CriticalRateLimit(), controller.GetReporterNoticeVersion)
 			externalUsageRoute.GET("/reporter/updates/stable", middleware.CriticalRateLimit(), controller.GetReporterUpdateCatalog)
 			externalUsageRoute.GET("/reporter/releases/:release_id/:target/:name", middleware.CriticalRateLimit(), controller.GetReporterReleaseAsset)
 			externalUsageRoute.POST("/reporter/status", middleware.CriticalRateLimit(), controller.ReportReporterStatus)

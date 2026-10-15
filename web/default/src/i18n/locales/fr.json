@@ -5409,6 +5409,12 @@
     "Update recovery required": "Récupération de mise à jour requise",
     "Update status is stale": "État de mise à jour ancien",
     "Update status unavailable": "État de mise à jour indisponible",
-    "Waiting for release rollout": "En attente du déploiement de la version"
+    "Waiting for release rollout": "En attente du déploiement de la version",
+    "Checks daily and notifies you when a new version is available. Upgrade manually using a new installation command from this page.": "Vérifie chaque jour et vous avertit des nouvelles versions. Mettez à niveau manuellement avec une nouvelle commande générée sur cette page.",
+    "Existing devices must run the new installation command once to enable update notifications. No automatic downloads or installation.": "Les appareils existants doivent exécuter une fois la nouvelle commande pour activer les notifications. Aucun téléchargement ni installation automatique.",
+    "Collector version not reported": "Version du collecteur non transmise",
+    "Manual upgrade available": "Mise à niveau manuelle disponible",
+    "Generate a new installation command above to upgrade this device.": "Générez une nouvelle commande ci-dessus pour mettre à niveau cet appareil.",
+    "Manual upgrades only": "Mise à niveau manuelle uniquement"
   }
 }

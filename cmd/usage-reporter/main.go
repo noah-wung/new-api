@@ -29,6 +29,7 @@ func main() {
 func runReporter() (runErr error) {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	showVersion := flag.Bool("version", false, "Write reporter version information")
+	checkVersion := flag.Bool("check-version", false, "Check for a collector update and prompt for manual installation")
 	selfCheck := flag.Bool("self-check", false, "Read-only local configuration and queue compatibility check")
 	managed := flag.Bool("managed", false, "Enable private lifecycle control for a managed worker")
 	transactionID := flag.String("transaction", "", "Managed worker transaction identity")
@@ -57,7 +58,8 @@ func runReporter() (runErr error) {
 	claudeSettings := flag.String("claude-settings", "", "Claude user settings.json (defaults to CLAUDE_CONFIG_DIR/settings.json or ~/.claude/settings.json)")
 	claudeUpstream := flag.String("claude-upstream", "", "Explicit effective upstream URL for the Claude telemetry profile")
 	installClaude := flag.Bool("install-claude", false, "Exchange a one-time Claude install token and configure telemetry")
-	installToken := flag.String("install-token", "", "One-time Claude installer token")
+	installCodex := flag.Bool("install-codex", false, "Exchange an installation token, preserving existing Codex configuration")
+	installToken := flag.String("install-token", "", "One-time client installer token")
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
 		return err
 	}
@@ -90,9 +92,9 @@ func runReporter() (runErr error) {
 	if *updateCheck || *updateNow || *updateApply != "" || *updateRecover || *autoUpdate != "" {
 		return runUpdate(*runtimePath, *updateApply, *updateCheck || *updateNow, *updateRecover, *updateNow, *autoUpdate)
 	}
-	if *installClaude {
+	if *installClaude || *installCodex {
 		if *configPath == "" || *server == "" || *installToken == "" {
-			return errors.New("--install-claude requires --server, --install-token and --config")
+			return errors.New("installation requires --server, --install-token and --config")
 		}
 		path, err := usagereporter.ExpandPath(*configPath)
 		if err != nil {
@@ -101,6 +103,9 @@ func runReporter() (runErr error) {
 		path, err = filepath.Abs(path)
 		if err != nil {
 			return err
+		}
+		if *installCodex {
+			return usagereporter.InstallCodexReporter(*server, *installToken, path)
 		}
 		settings := *claudeSettings
 		if settings == "" {
@@ -151,6 +156,11 @@ func runReporter() (runErr error) {
 
 	if *selfCheck {
 		return usagereporter.SelfCheck(cfg)
+	}
+	if *checkVersion {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		return checkCollectorVersion(ctx, cfg)
 	}
 	if strings.TrimSpace(*preservePolicyFrom) != "" {
 		if expandedConfigPath == "" {
@@ -237,5 +247,8 @@ func runReporter() (runErr error) {
 			_ = reporterupdate.Save(expandedConfigPath+".health.json", health)
 		})
 	}
-	return usagereporter.RunClient(ctx, cfg, *serve, os.Stdout, os.Stderr)
+	if *managed {
+		return usagereporter.RunClient(ctx, cfg, *serve, os.Stdout, os.Stderr)
+	}
+	return runClientWithNotices(ctx, cfg, *serve)
 }

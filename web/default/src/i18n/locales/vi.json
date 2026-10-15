@@ -5409,6 +5409,12 @@
     "Update recovery required": "Cần khôi phục cập nhật",
     "Update status is stale": "Trạng thái cập nhật đã cũ",
     "Update status unavailable": "Không có trạng thái cập nhật",
-    "Waiting for release rollout": "Đang chờ phân phối bản phát hành"
+    "Waiting for release rollout": "Đang chờ phân phối bản phát hành",
+    "Checks daily and notifies you when a new version is available. Upgrade manually using a new installation command from this page.": "Kiểm tra hằng ngày và thông báo khi có phiên bản mới. Nâng cấp thủ công bằng lệnh cài đặt mới từ trang này.",
+    "Existing devices must run the new installation command once to enable update notifications. No automatic downloads or installation.": "Thiết bị hiện có cần chạy lệnh cài đặt mới một lần để bật thông báo cập nhật. Không tự động tải xuống hoặc cài đặt.",
+    "Collector version not reported": "Chưa báo cáo phiên bản công cụ thu thập",
+    "Manual upgrade available": "Có bản nâng cấp thủ công",
+    "Generate a new installation command above to upgrade this device.": "Tạo lệnh cài đặt mới ở trên để nâng cấp thiết bị này.",
+    "Manual upgrades only": "Chỉ nâng cấp thủ công"
   }
 }

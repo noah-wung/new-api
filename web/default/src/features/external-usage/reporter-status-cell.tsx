@@ -33,13 +33,15 @@ export function ReporterStatusCell(props: {
   if (query.isPending) return <span>{t('Loading...')}</span>
   if (query.isError) return <span>{t('Update status unavailable')}</span>
   const status = query.data?.find((row) => row.device_id === props.deviceId)
-  if (!status) return <span>{t('Automatic update support not reported')}</span>
+  if (!status) return <span>{t('Collector version not reported')}</span>
   const phases: Record<string, string> = {
     idle:
       status.available_version &&
       status.available_version !== status.reporter_version
         ? t('Waiting for release rollout')
         : t('Up to date'),
+    notice_current: t('Up to date'),
+    update_available: t('Manual upgrade available'),
     checking: t('Checking for updates'),
     downloading: t('Downloading update'),
     prepared: t('Update prepared'),
@@ -66,10 +68,17 @@ export function ReporterStatusCell(props: {
       <Badge variant='outline'>
         {phases[status.phase] ?? t('Update status unavailable')}
       </Badge>
+      {status.phase === 'update_available' ? (
+        <span>
+          {t(
+            'Generate a new installation command above to upgrade this device.'
+          )}
+        </span>
+      ) : null}
       <span>
         {status.auto_update
           ? t('Automatic updates on')
-          : t('Automatic updates off')}
+          : t('Manual upgrades only')}
       </span>
       <span>
         {t('Last update check')}: {formatTimestamp(status.last_check_at)}

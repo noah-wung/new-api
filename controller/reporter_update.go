@@ -10,6 +10,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func GetReporterNoticeVersion(c *gin.Context) {
+	if !ensureExternalUsageEnabled(c) || !ensureExternalUsageSourceEnabled(c, c.DefaultQuery("source", model.ExternalUsageSourceCodex)) {
+		return
+	}
+	version, err := service.ReporterNoticeVersion(c.Query("target"))
+	c.Header("Cache-Control", "no-store")
+	if err != nil {
+		c.Status(http.StatusServiceUnavailable)
+		return
+	}
+	common.ApiSuccess(c, version)
+}
+
 func GetReporterUpdateCatalog(c *gin.Context) {
 	data, _, e := service.ActiveReporterCatalog()
 	c.Header("Cache-Control", "no-store")

@@ -5409,6 +5409,12 @@
     "Update recovery required": "Update recovery required",
     "Update status is stale": "Update status is stale",
     "Update status unavailable": "Update status unavailable",
-    "Waiting for release rollout": "Waiting for release rollout"
+    "Waiting for release rollout": "Waiting for release rollout",
+    "Checks daily and notifies you when a new version is available. Upgrade manually using a new installation command from this page.": "Checks daily and notifies you when a new version is available. Upgrade manually using a new installation command from this page.",
+    "Existing devices must run the new installation command once to enable update notifications. No automatic downloads or installation.": "Existing devices must run the new installation command once to enable update notifications. No automatic downloads or installation.",
+    "Collector version not reported": "Collector version not reported",
+    "Manual upgrade available": "Manual upgrade available",
+    "Generate a new installation command above to upgrade this device.": "Generate a new installation command above to upgrade this device.",
+    "Manual upgrades only": "Manual upgrades only"
   }
 }

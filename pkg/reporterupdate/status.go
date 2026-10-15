@@ -15,7 +15,7 @@ import (
 
 func ValidPhase(v string) bool {
 	switch v {
-	case "idle", "checking", "downloading", "prepared", "switching", "health_check", "committed", "check_failed", "rolling_back", "rolled_back", "recovery_required":
+	case "notice_current", "update_available", "idle", "checking", "downloading", "prepared", "switching", "health_check", "committed", "check_failed", "rolling_back", "rolled_back", "recovery_required":
 		return true
 	}
 	return false

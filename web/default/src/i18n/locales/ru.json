@@ -5409,6 +5409,12 @@
     "Update recovery required": "Требуется восстановление обновления",
     "Update status is stale": "Статус обновления устарел",
     "Update status unavailable": "Статус обновления недоступен",
-    "Waiting for release rollout": "Ожидание поэтапного развёртывания"
+    "Waiting for release rollout": "Ожидание поэтапного развёртывания",
+    "Checks daily and notifies you when a new version is available. Upgrade manually using a new installation command from this page.": "Проверяет обновления ежедневно и уведомляет о новой версии. Для обновления вручную создайте новую команду установки на этой странице.",
+    "Existing devices must run the new installation command once to enable update notifications. No automatic downloads or installation.": "На существующих устройствах нужно один раз выполнить новую команду установки для включения уведомлений. Автоматическая загрузка и установка не выполняются.",
+    "Collector version not reported": "Версия сборщика не передана",
+    "Manual upgrade available": "Доступно ручное обновление",
+    "Generate a new installation command above to upgrade this device.": "Создайте новую команду установки выше, чтобы обновить это устройство.",
+    "Manual upgrades only": "Только ручное обновление"
   }
 }

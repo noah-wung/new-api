@@ -73,7 +73,7 @@ func runReporterCommand(t *testing.T, args ...string) string {
 	t.Helper()
 	commandArgs := append([]string{"-test.run=^TestUsageReporterSubprocess$", "--"}, args...)
 	cmd := exec.Command(os.Args[0], commandArgs...)
-	cmd.Env = append(os.Environ(), "NEW_API_USAGE_REPORTER_TEST_PROCESS=1")
+	cmd.Env = append(os.Environ(), "NEW_API_USAGE_REPORTER_TEST_PROCESS=1", "HOME="+t.TempDir())
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(output))
 	return string(output)
@@ -82,6 +82,10 @@ func runReporterCommand(t *testing.T, args ...string) string {
 func TestReporterCommandPersistsGatewayOnlyProgressWithoutUploading(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/external-usage/report" {
+			http.NotFound(w, r)
+			return
+		}
 		requests.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -135,6 +139,10 @@ func TestReporterCommandRetriesFailedUploadWithoutRecountingGatewayUsage(t *test
 	received := make(chan usagereporter.ReportPayload, 4)
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/external-usage/report" {
+			http.NotFound(w, r)
+			return
+		}
 		var payload usagereporter.ReportPayload
 		if err := common.DecodeJson(r.Body, &payload); err != nil {
 			t.Errorf("decode report: %v", err)
@@ -173,7 +181,7 @@ func TestReporterCommandRetriesFailedUploadWithoutRecountingGatewayUsage(t *test
 	args := []string{"--server", server.URL, "--credential", "fixture-credential", "--codex-dir", sessions, "--state", statePath}
 	commandArgs := append([]string{"-test.run=^TestUsageReporterSubprocess$", "--"}, args...)
 	failed := exec.Command(os.Args[0], commandArgs...)
-	failed.Env = append(os.Environ(), "NEW_API_USAGE_REPORTER_TEST_PROCESS=1")
+	failed.Env = append(os.Environ(), "NEW_API_USAGE_REPORTER_TEST_PROCESS=1", "HOME="+t.TempDir())
 	output, err := failed.CombinedOutput()
 	require.Error(t, err)
 	assert.Contains(t, string(output), "503")
@@ -209,7 +217,7 @@ func TestReporterCommandWritesBackgroundDiagnosticsToLog(t *testing.T) {
 
 	args := []string{"-test.run=^TestUsageReporterSubprocess$", "--", "--log-file", logPath, "--config", filepath.Join(root, "missing-config.json")}
 	cmd := exec.Command(os.Args[0], args...)
-	cmd.Env = append(os.Environ(), "NEW_API_USAGE_REPORTER_TEST_PROCESS=1")
+	cmd.Env = append(os.Environ(), "NEW_API_USAGE_REPORTER_TEST_PROCESS=1", "HOME="+t.TempDir())
 	_, err = cmd.CombinedOutput()
 	require.Error(t, err, "background errors must retain a nonzero exit code for Task Scheduler")
 	content, err = os.ReadFile(logPath)
@@ -223,6 +231,10 @@ func TestReporterCommandWritesBackgroundDiagnosticsToLog(t *testing.T) {
 func TestCodexReporterRetriesIncompleteACKFromSharedQueue(t *testing.T) {
 	var uploads []usagereporter.ReportPayload
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/external-usage/report" {
+			http.NotFound(w, r)
+			return
+		}
 		var payload usagereporter.ReportPayload
 		require.NoError(t, common.DecodeJson(r.Body, &payload))
 		uploads = append(uploads, payload)

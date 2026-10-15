@@ -26,7 +26,7 @@ function renderStatus(rows: ReporterStatus[], canView = true) {
 
 test('missing update status does not imply the device is current', () => {
   const html = renderStatus([])
-  assert.match(html, /Automatic update support not reported/)
+  assert.match(html, /Collector version not reported/)
   assert.doesNotMatch(html, /Up to date/)
 })
 
@@ -46,9 +46,30 @@ test('device status shows available version, recovery and stale observations', (
   const html = renderStatus(rows)
   assert.match(html, /1\.0\.0/)
   assert.match(html, /Available version: 1\.1\.0/)
-  assert.match(html, /Automatic updates off/)
+  assert.match(html, /Manual upgrades only/)
   assert.match(html, /Update recovery required/)
   assert.match(html, /Update status is stale/)
   assert.match(html, /stop_failed/)
   assert.doesNotMatch(renderStatus(rows, false), /1\.0\.0|stop_failed/)
+})
+
+test('a manual upgrade shows the new version and how to install it', () => {
+  const html = renderStatus([
+    {
+      device_id: 7,
+      reporter_version: '1.0.1',
+      available_version: '1.1.0',
+      auto_update: false,
+      phase: 'update_available',
+      error_code: '',
+      last_check_at: Math.floor(Date.now() / 1000),
+      received_at: Math.floor(Date.now() / 1000),
+    },
+  ])
+  assert.match(html, /Manual upgrade available/)
+  assert.match(html, /Generate a new installation command above/)
+  assert.doesNotMatch(
+    html,
+    /Waiting for release rollout|Up to date|Automatic updates on/
+  )
 })

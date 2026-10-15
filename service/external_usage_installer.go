@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/reporterupdate"
 	"github.com/QuantumNous/new-api/pkg/usagereporter"
 	"gorm.io/gorm"
 )
@@ -193,9 +194,9 @@ func ResolveUsageReporterBinarySpec(target string) (*UsageReporterBinarySpec, er
 }
 
 func buildMacOSInstallScript(params BuildInstallScriptParams) string {
-	download := `curl -fsSL "$BIN_URL" -o "$BIN_PATH"`
+	download := `curl -fsSL "$BIN_URL" -o "$NEXT_BINARY"`
 	if params.BundledBinary {
-		download = `cp "$CLIENT_BUNDLE_BINARY" "$BIN_PATH"`
+		download = `cp "$CLIENT_BUNDLE_BINARY" "$NEXT_BINARY"`
 	}
 	serviceURL := strings.TrimRight(strings.TrimSpace(params.ServiceURL), "/")
 	installToken := strings.TrimSpace(params.InstallToken)
@@ -204,17 +205,14 @@ set -eu
 
 SERVICE_URL=%q
 INSTALL_TOKEN=%q
-ACCEPT_WINDOW_DAYS=%d
 INSTALL_ROOT="$HOME/.new-api-usage-reporter"
 BIN_PATH="$INSTALL_ROOT/usage-reporter"
 CONFIG_PATH="$INSTALL_ROOT/config.json"
-STATE_PATH="$INSTALL_ROOT/state.json"
-CODEX_DIR="$HOME/.codex/sessions"
 PLIST_PATH="$HOME/Library/LaunchAgents/pro.newapi.usage-reporter.codex.plist"
-TMP_DIR="$(mktemp -d)"
+NEXT_BINARY="$INSTALL_ROOT/.usage-reporter-next-$$"
 
 cleanup() {
-  rm -rf "$TMP_DIR"
+  rm -f "$NEXT_BINARY"
 }
 
 trap cleanup EXIT INT TERM
@@ -237,49 +235,12 @@ case "$ARCH" in
 esac
 
 BIN_URL="$SERVICE_URL/api/external-usage/reporter/binary/$TARGET/usage-reporter"
-EXCHANGE_URL="$SERVICE_URL/api/external-usage/self/codex-installer/exchange"
-DEVICE_NAME="$(hostname 2>/dev/null || echo 'codex-macos')"
-DEVICE_FINGERPRINT="$(printf 'codex|%%s|%%s|%%s' "$TARGET" "$DEVICE_NAME" "$HOME" | shasum -a 256 | awk '{print $1}')"
-EXCHANGE_RESPONSE="$TMP_DIR/exchange.json"
 
 %s
-chmod +x "$BIN_PATH"
+chmod 700 "$NEXT_BINARY"
 
-PAYLOAD=$(printf '{"install_token":"%%s","device_name":"%%s","device_fingerprint":"%%s"}' "$INSTALL_TOKEN" "$DEVICE_NAME" "$DEVICE_FINGERPRINT")
-curl -fsSL -X POST "$EXCHANGE_URL" -H 'Content-Type: application/json' -d "$PAYLOAD" -o "$EXCHANGE_RESPONSE"
-
-parse_json_field() {
-  key="$1"
-  sed -n 's/.*"'$1'":"\([^"]*\)".*/\1/p' "$EXCHANGE_RESPONSE" | head -n 1
-}
-
-REPORTING_CREDENTIAL="$(parse_json_field reporting_credential)"
-SOURCE="$(parse_json_field source)"
-SERVER="$(parse_json_field server)"
-
-if [ -z "$REPORTING_CREDENTIAL" ]; then
-  echo "installer exchange did not return a reporting credential" >&2
-  cat "$EXCHANGE_RESPONSE" >&2
-  exit 1
-fi
-
-if [ -z "$SOURCE" ]; then
-  SOURCE="codex"
-fi
-if [ -z "$SERVER" ]; then
-  SERVER="$SERVICE_URL"
-fi
-
-NEXT_CONFIG_PATH="$TMP_DIR/config.json"
-cat > "$NEXT_CONFIG_PATH" <<EOF
-{"server":"$SERVER","source":"$SOURCE","credential":"$REPORTING_CREDENTIAL","codex_dir":"$CODEX_DIR","state_path":"$STATE_PATH","accept_window_days":$ACCEPT_WINDOW_DAYS}
-EOF
-
-if [ -f "$CONFIG_PATH" ]; then
-  "$BIN_PATH" --config "$NEXT_CONFIG_PATH" --preserve-gateway-policy-from "$CONFIG_PATH"
-fi
-cp "$NEXT_CONFIG_PATH" "$CONFIG_PATH"
-chmod 600 "$CONFIG_PATH"
+"$NEXT_BINARY" --install-codex --server "$SERVICE_URL" --install-token "$INSTALL_TOKEN" --config "$CONFIG_PATH"
+mv -f "$NEXT_BINARY" "$BIN_PATH"
 "$BIN_PATH" --config "$CONFIG_PATH"
 
 cat > "$PLIST_PATH" <<EOF
@@ -309,81 +270,46 @@ launchctl unload "$PLIST_PATH" >/dev/null 2>&1 || true
 launchctl load -w "$PLIST_PATH"
 
 echo "Installed Codex usage reporting to $INSTALL_ROOT"
-`, serviceURL, installToken, params.AcceptWindowDays, download, int(usagereporter.DefaultReportInterval/time.Second))
+`, serviceURL, installToken, download, int(usagereporter.DefaultReportInterval/time.Second))
 }
 
 func buildWindowsInstallScript(params BuildInstallScriptParams) string {
-	download := `Invoke-WebRequest -Uri $BinUrl -OutFile $BinaryPath -UseBasicParsing`
+	download := `Invoke-WebRequest -Uri $BinUrl -OutFile $TempBinary -UseBasicParsing`
 	if params.BundledBinary {
-		download = `Copy-Item -LiteralPath $ClientBundleBinary -Destination $BinaryPath -Force`
+		download = `Copy-Item -LiteralPath $ClientBundleBinary -Destination $TempBinary -Force`
 	}
 	serviceURL := strings.TrimRight(strings.TrimSpace(params.ServiceURL), "/")
 	installToken := strings.TrimSpace(params.InstallToken)
 	return fmt.Sprintf(`$ErrorActionPreference = 'Stop'
 $ServiceUrl = %q
 $InstallToken = %q
-$AcceptWindowDays = %d
 $InstallRoot = Join-Path $env:USERPROFILE ".new-api-usage-reporter"
 $BinaryPath = Join-Path $InstallRoot "usage-reporter.exe"
 $ConfigPath = Join-Path $InstallRoot "config.json"
 $LogPath = Join-Path $InstallRoot "scheduled-task.log"
-$StatePath = Join-Path $InstallRoot "state.json"
-$CodexDir = Join-Path $env:USERPROFILE ".codex\sessions"
 $TaskName = "new-api-usage-reporter-codex"
 $BinUrl = "$ServiceUrl/api/external-usage/reporter/binary/windows-amd64/usage-reporter.exe"
-$ExchangeUrl = "$ServiceUrl/api/external-usage/self/codex-installer/exchange"
 
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
-$DeviceName = $env:COMPUTERNAME
-$Hasher = [System.Security.Cryptography.SHA256]::Create()
-$DeviceFingerprintBytes = [System.Text.Encoding]::UTF8.GetBytes("codex|windows-amd64|$DeviceName|$env:USERPROFILE")
-$DeviceFingerprint = ([System.BitConverter]::ToString($Hasher.ComputeHash($DeviceFingerprintBytes))).Replace('-', '').ToLowerInvariant()
+$TempBinary = Join-Path $InstallRoot ([System.Guid]::NewGuid().ToString() + '.exe')
+try {
 
 %s
 
-$ExchangePayload = @{
-  install_token = $InstallToken
-  device_name = $DeviceName
-  device_fingerprint = $DeviceFingerprint
-} | ConvertTo-Json -Compress
+$InstallArguments = ('--install-codex --server "{0}" --install-token "{1}" --config "{2}" --log-file "{3}"' -f $ServiceUrl, $InstallToken, $ConfigPath, $LogPath)
+$InstallRun = Start-Process -FilePath $TempBinary -ArgumentList $InstallArguments -WindowStyle Hidden -Wait -PassThru
+if ($InstallRun.ExitCode -ne 0) { throw "Collector configuration failed. See $LogPath" }
 
-$ExchangeResponse = Invoke-RestMethod -Method Post -Uri $ExchangeUrl -ContentType "application/json" -Body $ExchangePayload
-if (-not $ExchangeResponse.success) {
-  throw "installer exchange failed"
-}
-
-$Server = $ExchangeResponse.data.server
-if (-not $Server) {
-  $Server = $ServiceUrl
-}
-$Source = $ExchangeResponse.data.source
-if (-not $Source) {
-  $Source = "codex"
-}
-$Credential = $ExchangeResponse.data.reporting_credential
-if (-not $Credential) {
-  throw "installer exchange returned empty reporting credential"
-}
-
-$ConfigValues = @{
-  server = $Server
-  source = $Source
-  credential = $Credential
-  codex_dir = $CodexDir
-  state_path = $StatePath
-  accept_window_days = $AcceptWindowDays
-}
-if (Test-Path $ConfigPath) {
-  $PreviousConfig = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
-  foreach ($PolicyName in @("gateway_urls", "excluded_codex_providers", "codex_config_path")) {
-    if ($PreviousConfig.PSObject.Properties.Name -contains $PolicyName) {
-      $ConfigValues[$PolicyName] = $PreviousConfig.$PolicyName
-    }
+$PreviousTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($PreviousTask) {
+  Stop-ScheduledTask -TaskName $TaskName
+  $Deadline = (Get-Date).AddSeconds(30)
+  while ((Get-ScheduledTask -TaskName $TaskName).State -eq 'Running') {
+    if ((Get-Date) -gt $Deadline) { throw 'Previous Codex reporter did not stop' }
+    Start-Sleep -Milliseconds 200
   }
 }
-$Config = $ConfigValues | ConvertTo-Json -Compress
-
-[System.IO.File]::WriteAllText($ConfigPath, $Config, (New-Object System.Text.UTF8Encoding($false)))
+Move-Item -LiteralPath $TempBinary -Destination $BinaryPath -Force
 
 # The downloaded Windows binary uses the GUI subsystem and writes its own log.
 $Arguments = ('--config "{0}" --log-file "{1}"' -f $ConfigPath, $LogPath)
@@ -398,7 +324,10 @@ $Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
 
 Write-Host "Installed Codex usage reporting to $InstallRoot"
-`, serviceURL, installToken, params.AcceptWindowDays, download, int(usagereporter.DefaultReportInterval/time.Minute), int(usagereporter.DefaultReportInterval/time.Minute))
+} finally {
+  if (Test-Path -LiteralPath $TempBinary) { Remove-Item -LiteralPath $TempBinary -Force }
+}
+`, serviceURL, installToken, download, int(usagereporter.DefaultReportInterval/time.Minute), int(usagereporter.DefaultReportInterval/time.Minute))
 }
 
 func usageReporterBinarySpecForTarget(target string) (*UsageReporterBinarySpec, error) {
@@ -459,10 +388,11 @@ func buildUsageReporterBinary(spec *UsageReporterBinarySpec) (string, error) {
 		return "", err
 	}
 	outputPath := filepath.Join(outputDir, spec.DownloadName)
-	args := []string{"build", "-o", outputPath}
+	flags := "-s -w -X github.com/QuantumNous/new-api/pkg/reporterupdate.Version=" + reporterupdate.Version
 	if spec.GOOS == "windows" {
-		args = append(args, "-ldflags", "-s -w -H=windowsgui")
+		flags += " -H=windowsgui"
 	}
+	args := []string{"build", "-o", outputPath, "-ldflags", flags}
 	args = append(args, "./cmd/usage-reporter")
 	cmd := exec.Command(goBinary, args...)
 	cmd.Dir = projectRoot

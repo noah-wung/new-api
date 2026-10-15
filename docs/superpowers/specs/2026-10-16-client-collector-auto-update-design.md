@@ -1,6 +1,6 @@
 # 客户端采集器自动检查与静默升级设计
 
-状态：用户已确认并授权实施。实施及验证范围见 [自动更新说明](../../installation/usage-reporter-updates.md)；本设计不代表已经生产部署。
+状态：签名升级模块已实施，但用户随后决定暂不配置自动升级，当前改用每日检查、通知用户手动升级。普通安装无需签名配置；以下保留原设计作为后续启用参考。当前行为与验证范围见 [更新说明](../../installation/usage-reporter-updates.md)；本设计不代表已经生产部署。
 
 基线：`codex/claude-code-usage-reporter`，`949da3b1b`。
 

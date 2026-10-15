@@ -53,15 +53,9 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		}
 	}
 	var tokens service.ClientInstallTokens
-	if req.AutoUpdate != nil {
-		if !strings.HasPrefix(resolveExternalUsageInstallerServiceURL(c), "https://") {
-			common.ApiErrorMsg(c, "Managed installation requires HTTPS.")
-			return
-		}
-		if _, _, err := service.ActiveReporterCatalog(); err != nil {
-			common.ApiErrorMsg(c, "A signed collector release must be activated before installation.")
-			return
-		}
+	if req.AutoUpdate != nil && *req.AutoUpdate {
+		common.ApiErrorMsg(c, "Automatic upgrades are disabled. Generate a new command for manual upgrades.")
+		return
 	}
 	var expiresAt int64
 	if selected[model.ExternalUsageSourceClaudeCode] {
@@ -84,7 +78,6 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		}
 	}
 	command, err := service.BuildClientInstallerCommand(service.BuildInstallScriptParams{
-		Managed: req.AutoUpdate != nil, AutoUpdate: req.AutoUpdate != nil && *req.AutoUpdate,
 		Platform: req.Platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c),
 	}, tokens)
 	if err != nil {
@@ -98,6 +91,10 @@ func GetExternalUsageClientInstallScript(c *gin.Context) {
 	if !ensureExternalUsageEnabled(c) {
 		return
 	}
+	if c.Query("auto_update") == "true" {
+		common.ApiErrorMsg(c, "Automatic upgrades are disabled. Generate a new command for manual upgrades.")
+		return
+	}
 	tokens := service.ClientInstallTokens{Codex: c.Query("codex_token"), Claude: c.Query("claude_token")}
 	if err := service.ValidateClientInstallTokens(tokens); err != nil {
 		common.ApiError(c, err)
@@ -108,7 +105,6 @@ func GetExternalUsageClientInstallScript(c *gin.Context) {
 		platform = service.ExternalUsageInstallerPlatformWindows
 	}
 	script, err := service.BuildClientInstallScript(service.BuildInstallScriptParams{
-		Managed: c.Query("auto_update") != "", AutoUpdate: c.Query("auto_update") == "true",
 		Platform: platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c),
 		AcceptWindowDays: external_usage_setting.GetSetting().AcceptWindowDays,
 	}, tokens)

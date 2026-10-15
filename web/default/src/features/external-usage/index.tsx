@@ -81,7 +81,6 @@ import {
   upsertExternalUsageModelMapping,
 } from './api'
 import { ClientInstallerCard } from './client-installer-card'
-import { ReporterReleaseCard } from './reporter-release-card'
 import { ReporterStatusCell } from './reporter-status-cell'
 import {
   canRequestExternalUsageInstallerCommand,
@@ -1026,7 +1025,6 @@ export function ExternalUsage() {
           </div>
 
           <div className='flex flex-col gap-6'>
-            {isAdmin ? <ReporterReleaseCard /> : null}
             <ClientInstallerCard
               key={`${selectedUserId ?? 'self'}:${configuredClientSources.join(',')}`}
               canRequest={canRequestInstallerCommand}

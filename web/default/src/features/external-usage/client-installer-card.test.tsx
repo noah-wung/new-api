@@ -33,7 +33,8 @@ test('one installer presents both clients and the Claude route when both are ena
   assert.match(html, /Claude Code \(CLI and VS Code\)/)
   assert.match(html, /Claude API address/)
   assert.match(html, /every 5 minutes/)
-  assert.match(html, /Automatically check and silently update/)
+  assert.match(html, /Checks daily and notifies you/)
+  assert.doesNotMatch(html, /Automatically check and silently update/)
   assert.match(
     html,
     /Existing devices must run the new installation command once/

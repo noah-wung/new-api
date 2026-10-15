@@ -5409,6 +5409,12 @@
     "Update recovery required": "更新の復旧が必要です",
     "Update status is stale": "更新状態が古くなっています",
     "Update status unavailable": "更新状態を取得できません",
-    "Waiting for release rollout": "段階的リリースを待機中"
+    "Waiting for release rollout": "段階的リリースを待機中",
+    "Checks daily and notifies you when a new version is available. Upgrade manually using a new installation command from this page.": "毎日バージョンを確認し、新版があれば通知します。このページで新しいインストールコマンドを生成し、手動で更新してください。",
+    "Existing devices must run the new installation command once to enable update notifications. No automatic downloads or installation.": "既存の端末で更新通知を有効にするには、新しいインストールコマンドを一度実行してください。自動ダウンロードやインストールは行いません。",
+    "Collector version not reported": "コレクターのバージョンは未報告です",
+    "Manual upgrade available": "手動更新が利用可能です",
+    "Generate a new installation command above to upgrade this device.": "上で新しいインストールコマンドを生成し、この端末を更新してください。",
+    "Manual upgrades only": "手動更新のみ"
   }
 }

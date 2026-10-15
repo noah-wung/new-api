@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/reporterupdate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,9 +24,7 @@ func TestBuildInstallScript_ReinstallPathDoesNotDeleteState(t *testing.T) {
 		t.Fatalf("BuildInstallScript returned error: %v", err)
 	}
 
-	if !strings.Contains(script, "state.json") {
-		t.Fatal("expected reinstall script to reference state.json")
-	}
+	require.Contains(t, script, "--install-codex", "reinstall uses the identity-preserving configuration exchange")
 	if strings.Contains(script, "rm -f \"$STATE_PATH\"") || strings.Contains(script, "Remove-Item $StatePath") {
 		t.Fatal("reinstall script should preserve state.json instead of deleting it")
 	}
@@ -66,8 +65,8 @@ func TestBuildInstallScript_MacOSIncludesRealInstallFlow(t *testing.T) {
 
 	checks := []string{
 		"/api/external-usage/reporter/binary/$TARGET/usage-reporter",
-		"/api/external-usage/self/codex-installer/exchange",
-		"curl -fsSL \"$BIN_URL\" -o \"$BIN_PATH\"",
+		"--install-codex",
+		"curl -fsSL \"$BIN_URL\" -o \"$NEXT_BINARY\"",
 		"\"$BIN_PATH\" --config \"$CONFIG_PATH\"",
 		"LaunchAgents/pro.newapi.usage-reporter.codex.plist",
 		"launchctl",
@@ -77,9 +76,8 @@ func TestBuildInstallScript_MacOSIncludesRealInstallFlow(t *testing.T) {
 			t.Fatalf("macOS install script missing %q", check)
 		}
 	}
-	if !strings.Contains(script, `"accept_window_days":$ACCEPT_WINDOW_DAYS`) {
-		t.Fatal("expected macOS install script to persist accept_window_days from the install script variable")
-	}
+	require.Contains(t, script, `"$NEXT_BINARY" --install-codex --server "$SERVICE_URL" --install-token "$INSTALL_TOKEN" --config "$CONFIG_PATH"`)
+
 }
 
 func TestBuildInstallScript_MacOSDoesNotDoubleTriggerReporterAtInstall(t *testing.T) {
@@ -114,8 +112,8 @@ func TestBuildInstallScript_WindowsIncludesRealInstallFlow(t *testing.T) {
 
 	checks := []string{
 		"/api/external-usage/reporter/binary/windows-amd64/usage-reporter.exe",
-		"/api/external-usage/self/codex-installer/exchange",
-		"Invoke-RestMethod",
+		"--install-codex",
+		"$InstallRun.ExitCode -ne 0",
 		"usage-reporter.exe",
 		"--config",
 		"Register-ScheduledTask",
@@ -128,9 +126,8 @@ func TestBuildInstallScript_WindowsIncludesRealInstallFlow(t *testing.T) {
 	if strings.Contains(script, "Set-Content -Path $ConfigPath -Value $Config -Encoding UTF8") {
 		t.Fatal("Windows install script should avoid PowerShell UTF-8 BOM config writes")
 	}
-	if !strings.Contains(script, "accept_window_days = $AcceptWindowDays") {
-		t.Fatal("expected Windows install script to persist accept_window_days from the install script variable")
-	}
+	require.Contains(t, script, "--install-codex --server")
+
 }
 
 func TestBuildInstallScript_WindowsSchedulesSilentBackgroundRunner(t *testing.T) {
@@ -241,4 +238,13 @@ func TestBuildUsageReporterWindowsBinaryUsesGUISubsystem(t *testing.T) {
 	header, ok := binary.OptionalHeader.(*pe.OptionalHeader64)
 	require.True(t, ok, "Windows amd64 download must be a PE32+ executable")
 	assert.Equal(t, uint16(pe.IMAGE_SUBSYSTEM_WINDOWS_GUI), header.Subsystem, "Task Scheduler must not create a console window for the reporter")
+	notice, err := reporterBinaryNotice(path)
+	require.NoError(t, err)
+	assert.Equal(t, reporterupdate.Version, notice.Version, "advertised version must match the downloadable asset")
+	t.Setenv(usageReporterAssetDirEnv, filepath.Dir(filepath.Dir(path)))
+	advertised, err := ReporterNoticeVersion("windows-amd64")
+	require.NoError(t, err)
+	assert.Equal(t, notice, advertised)
+	_, err = reporterBinaryNotice(filepath.Join(t.TempDir(), "missing.exe"))
+	assert.Error(t, err)
 }

@@ -173,8 +173,8 @@ func TestGetExternalUsageReporterInstallScript_RendersExchangeContent(t *testing
 	if !strings.Contains(body, "INSTALL_TOKEN=\""+rawToken+"\"") {
 		t.Fatalf("script body missing install token, got %q", body)
 	}
-	if !strings.Contains(body, "EXCHANGE_URL=\"$SERVICE_URL/api/external-usage/self/codex-installer/exchange\"") {
-		t.Fatalf("script body missing exchange endpoint, got %q", body)
+	if !strings.Contains(body, "--install-codex --server") {
+		t.Fatalf("script body missing identity-preserving configuration command, got %q", body)
 	}
 }
 

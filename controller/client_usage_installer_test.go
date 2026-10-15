@@ -180,3 +180,31 @@ func TestClientInstallerValidatesSelectionBeforeIssuingTokens(t *testing.T) {
 	CreateExternalUsageSelfClientInstallerCommand(ctx)
 	assert.Contains(t, w.Body.String(), `"success":true`, "Codex-only users do not need a Claude route")
 }
+
+func TestClientInstallerManualModeNeedsNoSigningSetup(t *testing.T) {
+	setupExternalUsageInstallerControllerTestDB(t)
+	enableExternalUsageForTest(t)
+	t.Setenv("NEW_API_USAGE_REPORTER_TRUST_KEYS", "")
+	t.Setenv("NEW_API_USAGE_REPORTER_RELEASE_DIR", "")
+	for _, automatic := range []any{nil, false, true} {
+		body := map[string]any{"platform": "macos", "sources": []string{"codex"}}
+		if automatic != nil {
+			body["auto_update"] = automatic
+		}
+		ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "http://gateway.example/api/external-usage/self/client-installer-command", body, 7)
+		CreateExternalUsageSelfClientInstallerCommand(ctx)
+		response := decodeAPIResponse(t, recorder)
+		if automatic == true {
+			assert.False(t, response.Success)
+			assert.Contains(t, response.Message, "Automatic upgrades are disabled")
+			continue
+		}
+		require.True(t, response.Success, response.Message)
+		var data struct {
+			Command string `json:"command"`
+		}
+		require.NoError(t, common.Unmarshal(response.Data, &data))
+		assert.Contains(t, data.Command, "http://gateway.example/")
+		assert.NotContains(t, data.Command, "auto_update")
+	}
+}
