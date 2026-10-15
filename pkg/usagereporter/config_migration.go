@@ -23,7 +23,7 @@ func BackfillAcceptWindowDaysFromServer(client *http.Client, cfg *Config) (bool,
 	if cfg.AcceptWindowDays > 0 {
 		return false, nil
 	}
-	if strings.TrimSpace(cfg.Source) != "" && strings.TrimSpace(cfg.Source) != SourceCodex {
+	if strings.TrimSpace(cfg.Source) != "" && strings.TrimSpace(cfg.Source) != SourceCodex && strings.TrimSpace(cfg.Source) != SourceClaudeCode {
 		return false, nil
 	}
 	serverURL := strings.TrimRight(strings.TrimSpace(cfg.Server), "/")

@@ -13,6 +13,7 @@ import (
 const (
 	ExternalUsageSourceCursor      = "cursor"
 	ExternalUsageSourceCodex       = "codex"
+	ExternalUsageSourceClaudeCode  = "claude_code"
 	ExternalUsageSourceZCode       = "zcode"
 	ExternalUsageSourceMiniMaxCode = "minimax_code"
 

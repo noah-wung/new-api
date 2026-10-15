@@ -16,6 +16,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestExpandReporterPathSupportsWindowsHomeSeparator(t *testing.T) {
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	for _, path := range []string{"~/settings.json", `~\settings.json`} {
+		actual, err := expandPath(path)
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(home, "settings.json"), actual)
+	}
+}
+
+func TestReporterCommandConfiguresClaudeUserSettingsWithoutUpload(t *testing.T) {
+	for _, name := range []string{"ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"} {
+		t.Setenv(name, "")
+	}
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1); w.WriteHeader(500) }))
+	defer server.Close()
+	root := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(root, "claude"))
+	configPath := filepath.Join(root, "config.json")
+	cfg := usagereporter.Config{Server: server.URL, Source: usagereporter.SourceClaudeCode, Credential: "private-reporting-credential", StatePath: filepath.Join(root, "state.json")}
+	require.NoError(t, usagereporter.SaveConfig(configPath, cfg))
+	output := runReporterCommand(t, "--config", configPath, "--configure-claude", "--claude-upstream", "https://api.anthropic.com")
+	assert.Contains(t, output, "restart Claude Code CLI and VS Code sessions")
+	assert.Zero(t, requests.Load())
+	loaded, err := usagereporter.LoadConfig(configPath)
+	require.NoError(t, err)
+	assert.Len(t, loaded.ClaudeReceiverToken, 64)
+	settings, err := os.ReadFile(filepath.Join(root, "claude", "settings.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(settings), "new_api.upstream_origin=https://api.anthropic.com")
+	assert.NotContains(t, string(settings), cfg.Credential)
+	assert.NotContains(t, output, loaded.ClaudeReceiverToken)
+	assert.NotContains(t, output, cfg.Credential)
+}
+
 // Exercise main in a child process so exits and global CLI flags behave as in
 // an installed reporter, without re-entering the parent test runner.
 func TestUsageReporterSubprocess(t *testing.T) {

@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/QuantumNous/new-api/pkg/usagereporter"
@@ -28,6 +33,10 @@ func runReporter() error {
 	source := flag.String("source", usagereporter.SourceCodex, "Usage source to report")
 	codexDir := flag.String("codex-dir", "~/.codex/sessions", "Codex sessions directory")
 	statePath := flag.String("state", "~/.new-api-usage-reporter/state.json", "Reporter state file")
+	serveClaude := flag.Bool("serve", false, "Run the Claude Code OTLP HTTP/JSON receiver until interrupted")
+	configureClaude := flag.Bool("configure-claude", false, "Merge telemetry into Claude user settings and exit")
+	claudeSettings := flag.String("claude-settings", "", "Claude user settings.json (defaults to CLAUDE_CONFIG_DIR/settings.json or ~/.claude/settings.json)")
+	claudeUpstream := flag.String("claude-upstream", "", "Explicit effective upstream URL for the Claude telemetry profile")
 	flag.Parse()
 
 	overrideConfig := usagereporter.Config{
@@ -78,7 +87,41 @@ func runReporter() error {
 		}
 		return nil
 	}
-
+	if *configureClaude {
+		if cfg.Source != usagereporter.SourceClaudeCode || expandedConfigPath == "" {
+			return errors.New("--configure-claude requires --config with source claude_code")
+		}
+		if *serveClaude {
+			return errors.New("--configure-claude and --serve must be run separately")
+		}
+		if cfg.ClaudeReceiverToken == "" {
+			var token [32]byte
+			if _, err := rand.Read(token[:]); err != nil {
+				return err
+			}
+			cfg.ClaudeReceiverToken = hex.EncodeToString(token[:])
+			if err := usagereporter.SaveConfig(expandedConfigPath, cfg); err != nil {
+				return err
+			}
+		}
+		settingsPath := *claudeSettings
+		if settingsPath == "" {
+			settingsDir := os.Getenv("CLAUDE_CONFIG_DIR")
+			if settingsDir == "" {
+				settingsDir = "~/.claude"
+			}
+			settingsPath = filepath.Join(settingsDir, "settings.json")
+		}
+		settingsPath, err := expandPath(settingsPath)
+		if err != nil {
+			return err
+		}
+		if err := usagereporter.ConfigureClaudeTelemetry(cfg, settingsPath, *claudeUpstream); err != nil {
+			return err
+		}
+		fmt.Println("Claude telemetry configured; restart Claude Code CLI and VS Code sessions")
+		return nil
+	}
 	if expandedConfigPath != "" {
 		client := &http.Client{Timeout: 15 * time.Second}
 		changed, err := usagereporter.BackfillAcceptWindowDaysFromServer(client, &cfg)
@@ -89,6 +132,23 @@ func runReporter() error {
 				return err
 			}
 		}
+	}
+
+	if cfg.Source == usagereporter.SourceClaudeCode {
+		if !*serveClaude {
+			return errors.New("Claude Code collection requires --serve (OTLP HTTP/JSON); transcript scanning is not enabled")
+		}
+		expandedStatePath, err := expandPath(cfg.StatePath)
+		if err != nil {
+			return err
+		}
+		cfg.StatePath = expandedStatePath
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return usagereporter.RunClaudeReceiver(ctx, cfg, os.Stderr)
+	}
+	if *serveClaude {
+		return errors.New("--serve requires source claude_code")
 	}
 
 	expandedCodexDir, err := expandPath(cfg.CodexDir)
@@ -182,5 +242,8 @@ func expandPath(path string) (string, error) {
 	if path == "~" {
 		return home, nil
 	}
-	return filepath.Join(home, strings.TrimPrefix(path, "~/")), nil
+	if !strings.HasPrefix(path, "~/") && !strings.HasPrefix(path, `~\`) {
+		return "", errors.New("only the current user's home directory can be expanded")
+	}
+	return filepath.Join(home, path[2:]), nil
 }

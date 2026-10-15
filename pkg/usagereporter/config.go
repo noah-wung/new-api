@@ -24,6 +24,9 @@ type Config struct {
 	GatewayURLs            []string `json:"gateway_urls,omitempty"`
 	ExcludedCodexProviders []string `json:"excluded_codex_providers,omitempty"`
 	CodexConfigPath        string   `json:"codex_config_path,omitempty"`
+	ClaudeListen           string   `json:"claude_listen,omitempty"`
+	ClaudeReceiverToken    string   `json:"claude_receiver_token,omitempty"`
+	ClaudeExternalURLs     []string `json:"claude_external_urls"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -61,6 +64,15 @@ func SaveConfig(path string, cfg Config) error {
 		if cfg.AcceptWindowDays == 0 {
 			cfg.AcceptWindowDays = existing.AcceptWindowDays
 		}
+		if cfg.ClaudeListen == "" {
+			cfg.ClaudeListen = existing.ClaudeListen
+		}
+		if cfg.ClaudeReceiverToken == "" {
+			cfg.ClaudeReceiverToken = existing.ClaudeReceiverToken
+		}
+		if cfg.ClaudeExternalURLs == nil {
+			cfg.ClaudeExternalURLs = existing.ClaudeExternalURLs
+		}
 	}
 	cfg = cfg.withDefaults()
 	if err := cfg.Validate(); err != nil {
@@ -73,7 +85,7 @@ func SaveConfig(path string, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, content, 0o644)
+	return writePrivateFile(path, content)
 }
 
 func (c Config) WithDefaults() Config {
@@ -147,6 +159,7 @@ func (c Config) trimmed() Config {
 	c.CodexDir = strings.TrimSpace(c.CodexDir)
 	c.StatePath = strings.TrimSpace(c.StatePath)
 	c.CodexConfigPath = strings.TrimSpace(c.CodexConfigPath)
+	c.ClaudeListen = strings.TrimSpace(c.ClaudeListen)
 	return c
 }
 

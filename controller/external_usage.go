@@ -262,7 +262,7 @@ func GetExternalUsageReporterBinary(c *gin.Context) {
 	if !ensureExternalUsageEnabled(c) {
 		return
 	}
-	if !ensureExternalUsageSourceEnabled(c, model.ExternalUsageSourceCodex) {
+	if !ensureExternalUsageSourceEnabled(c, c.DefaultQuery("source", model.ExternalUsageSourceCodex)) {
 		return
 	}
 

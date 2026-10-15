@@ -405,7 +405,10 @@ func ReportExternalUsage(device *model.ExternalUsageDevice, params ReportExterna
 			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
-			if existingEvent == nil && errors.Is(err, gorm.ErrRecordNotFound) {
+			// Claude telemetry provides request-level identities. Two separate
+			// requests can have identical counts within the same session second;
+			// the legacy equivalence heuristic would incorrectly collapse them.
+			if source != model.ExternalUsageSourceClaudeCode && existingEvent == nil && errors.Is(err, gorm.ErrRecordNotFound) {
 				existingEvent, err = model.FindEquivalentExternalUsageClientEventTx(
 					tx,
 					device.UserID,
@@ -701,6 +704,8 @@ func normalizeSource(source string) string {
 		return model.ExternalUsageSourceCursor
 	case model.ExternalUsageSourceCodex:
 		return model.ExternalUsageSourceCodex
+	case model.ExternalUsageSourceClaudeCode:
+		return model.ExternalUsageSourceClaudeCode
 	case model.ExternalUsageSourceZCode:
 		return model.ExternalUsageSourceZCode
 	case model.ExternalUsageSourceMiniMaxCode:
