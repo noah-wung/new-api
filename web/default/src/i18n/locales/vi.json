@@ -5349,6 +5349,19 @@
     "You can still edit non-sensitive operations fields such as models, groups, priority, and weight.": "Bạn vẫn có thể chỉnh sửa các trường vận hành không nhạy cảm như mô hình, nhóm, độ ưu tiên và trọng số.",
     "You do not have permission to edit sensitive channel settings.": "Bạn không có quyền chỉnh sửa cài đặt kênh nhạy cảm.",
     "Your account can edit sensitive channel settings.": "Tài khoản của bạn có thể chỉnh sửa cài đặt kênh nhạy cảm.",
-    "Your account cannot edit sensitive channel settings.": "Tài khoản của bạn không thể chỉnh sửa cài đặt kênh nhạy cảm."
+    "Your account cannot edit sensitive channel settings.": "Tài khoản của bạn không thể chỉnh sửa cài đặt kênh nhạy cảm.",
+    "Claude API address": "Địa chỉ API Claude",
+    "Claude Code Collector": "Trình thu thập Claude Code",
+    "Claude Code platform": "Nền tảng Claude Code",
+    "Claude Code usage reporting must be enabled by the administrator.": "Quản trị viên cần bật báo cáo sử dụng Claude Code.",
+    "Copy Claude Code installer command": "Sao chép lệnh cài đặt Claude Code",
+    "Enter a valid HTTP(S) Claude API address without credentials, query parameters, or fragments.": "Nhập địa chỉ HTTP(S) API Claude hợp lệ, không có thông tin xác thực, tham số truy vấn hoặc đoạn định danh.",
+    "Gateway usage is excluded. After installation, restart Claude Code CLI and VS Code sessions.": "Lượng sử dụng qua cổng sẽ được loại trừ. Sau khi cài đặt, hãy khởi động lại phiên Claude Code CLI và VS Code.",
+    "Generate a command, then run it on the device where Claude Code runs.": "Tạo lệnh rồi chạy trên thiết bị đang chạy Claude Code.",
+    "Install Claude Code Collector": "Cài trình thu thập Claude Code",
+    "Install one collector for Claude Code CLI and the official VS Code extension.": "Cài một trình thu thập cho Claude Code CLI và tiện ích VS Code chính thức.",
+    "Sign in as the selected user to generate a Claude Code installer command.": "Đăng nhập bằng người dùng đã chọn để tạo lệnh cài đặt Claude Code.",
+    "This address is already metered by this gateway.": "Lượng sử dụng của địa chỉ này đã được cổng này ghi nhận.",
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Dùng địa chỉ đã cấu hình trong Claude Code. Quá trình cài đặt sẽ dừng nếu không khớp. Không nhập khóa API."
   }
 }

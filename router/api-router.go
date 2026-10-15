@@ -297,6 +297,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			externalUsageRoute.POST("/report", middleware.CriticalRateLimit(), controller.ReportExternalUsage)
 			externalUsageRoute.POST("/self/codex-installer/exchange", controller.ExchangeExternalUsageSelfCodexInstallerToken)
+			externalUsageRoute.POST("/self/claude-code-installer/exchange", controller.ExchangeExternalUsageSelfClaudeInstallerToken)
 			externalUsageRoute.GET("/reporter/:script", controller.GetExternalUsageReporterInstallScript)
 			externalUsageRoute.GET("/reporter/binary/:target/:name", controller.GetExternalUsageReporterBinary)
 
@@ -304,6 +305,7 @@ func SetApiRouter(router *gin.Engine) {
 			externalUsageSelfRoute.Use(middleware.UserAuth())
 			{
 				externalUsageSelfRoute.POST("/codex-installer-command", controller.CreateExternalUsageSelfCodexInstallerCommand)
+				externalUsageSelfRoute.POST("/claude-code-installer-command", controller.CreateExternalUsageSelfClaudeInstallerCommand)
 				externalUsageSelfRoute.GET("/overview", controller.GetExternalUsageOverview)
 				externalUsageSelfRoute.GET("/devices", controller.ListExternalUsageDevices)
 				externalUsageSelfRoute.POST("/devices", controller.CreateExternalUsageDeviceCredential)

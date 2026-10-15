@@ -5349,6 +5349,19 @@
     "You can still edit non-sensitive operations fields such as models, groups, priority, and weight.": "你仍可编辑模型、分组、优先级和权重等非敏感运维字段。",
     "You do not have permission to edit sensitive channel settings.": "你没有权限编辑敏感渠道设置。",
     "Your account can edit sensitive channel settings.": "你的账号可以编辑敏感渠道设置。",
-    "Your account cannot edit sensitive channel settings.": "你的账号不能编辑敏感渠道设置。"
+    "Your account cannot edit sensitive channel settings.": "你的账号不能编辑敏感渠道设置。",
+    "Claude API address": "Claude API 地址",
+    "Claude Code Collector": "Claude Code 采集器",
+    "Claude Code platform": "Claude Code 运行平台",
+    "Claude Code usage reporting must be enabled by the administrator.": "管理员需先启用 Claude Code 用量上报。",
+    "Copy Claude Code installer command": "复制 Claude Code 安装命令",
+    "Enter a valid HTTP(S) Claude API address without credentials, query parameters, or fragments.": "请输入有效的 HTTP(S) Claude API 地址，不包含凭据、查询参数或片段。",
+    "Gateway usage is excluded. After installation, restart Claude Code CLI and VS Code sessions.": "网关已计量的用量将被排除。安装后请重启 Claude Code CLI 和 VS Code 会话。",
+    "Generate a command, then run it on the device where Claude Code runs.": "生成命令后，请在运行 Claude Code 的设备上执行。",
+    "Install Claude Code Collector": "安装 Claude Code 采集器",
+    "Install one collector for Claude Code CLI and the official VS Code extension.": "安装一个采集器，即可采集 Claude Code CLI 和官方 VS Code 扩展的用量。",
+    "Sign in as the selected user to generate a Claude Code installer command.": "请以所选用户登录，生成 Claude Code 安装命令。",
+    "This address is already metered by this gateway.": "此地址的用量已由本网关计量。",
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "请填写 Claude Code 当前配置的地址。不一致时将停止安装，请勿填写 API 密钥。"
   }
 }

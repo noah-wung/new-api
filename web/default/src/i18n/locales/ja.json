@@ -5349,6 +5349,19 @@
     "You can still edit non-sensitive operations fields such as models, groups, priority, and weight.": "モデル、グループ、優先度、重みなどの非機密の運用項目は引き続き編集できます。",
     "You do not have permission to edit sensitive channel settings.": "機密チャネル設定を編集する権限がありません。",
     "Your account can edit sensitive channel settings.": "あなたのアカウントは機密チャネル設定を編集できます。",
-    "Your account cannot edit sensitive channel settings.": "あなたのアカウントは機密チャネル設定を編集できません。"
+    "Your account cannot edit sensitive channel settings.": "あなたのアカウントは機密チャネル設定を編集できません。",
+    "Claude API address": "Claude API アドレス",
+    "Claude Code Collector": "Claude Code コレクター",
+    "Claude Code platform": "Claude Code のプラットフォーム",
+    "Claude Code usage reporting must be enabled by the administrator.": "管理者が Claude Code の使用量レポートを有効にする必要があります。",
+    "Copy Claude Code installer command": "Claude Code インストールコマンドをコピー",
+    "Enter a valid HTTP(S) Claude API address without credentials, query parameters, or fragments.": "認証情報、クエリパラメーター、フラグメントを含まない有効な HTTP(S) Claude API アドレスを入力してください。",
+    "Gateway usage is excluded. After installation, restart Claude Code CLI and VS Code sessions.": "ゲートウェイで計測済みの使用量は除外します。インストール後、Claude Code CLI と VS Code のセッションを再起動してください。",
+    "Generate a command, then run it on the device where Claude Code runs.": "コマンドを生成し、Claude Code を実行しているデバイスで実行してください。",
+    "Install Claude Code Collector": "Claude Code コレクターをインストール",
+    "Install one collector for Claude Code CLI and the official VS Code extension.": "Claude Code CLI と公式 VS Code 拡張機能の使用量を、1 つのコレクターで収集します。",
+    "Sign in as the selected user to generate a Claude Code installer command.": "選択したユーザーでログインして Claude Code のインストールコマンドを生成してください。",
+    "This address is already metered by this gateway.": "このアドレスの使用量は、このゲートウェイですでに計測されています。",
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Claude Code に設定されているアドレスを指定してください。一致しない場合はインストールを停止します。API キーは含めないでください。"
   }
 }

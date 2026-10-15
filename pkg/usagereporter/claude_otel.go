@@ -93,12 +93,21 @@ func newClaudeRoutePolicy(cfg Config) (*claudeRoutePolicy, error) {
 	return p, nil
 }
 
+func NormalizeClaudeUpstreamURL(value string) (string, error) {
+	return claudeRouteOrigin(value)
+}
+
 func claudeRouteOrigin(value string) (string, error) {
+	value = strings.TrimSpace(value)
 	u, err := url.Parse(value)
 	if err != nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return "", errors.New("route must be an HTTP(S) URL without credentials, query, or fragment")
 	}
-	return gatewayOrigin(value)
+	origin, err := gatewayOrigin(value)
+	if err != nil || strings.ContainsAny(origin, ",= \t\r\n") {
+		return "", errors.New("invalid upstream origin")
+	}
+	return origin, nil
 }
 
 func claudeListenAddress(cfg Config) (string, error) {

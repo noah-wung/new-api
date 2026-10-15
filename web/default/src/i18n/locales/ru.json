@@ -5349,6 +5349,19 @@
     "You can still edit non-sensitive operations fields such as models, groups, priority, and weight.": "Вы по-прежнему можете изменять нечувствительные операционные поля, такие как модели, группы, приоритет и вес.",
     "You do not have permission to edit sensitive channel settings.": "У вас нет права изменять чувствительные настройки каналов.",
     "Your account can edit sensitive channel settings.": "Ваша учетная запись может изменять чувствительные настройки каналов.",
-    "Your account cannot edit sensitive channel settings.": "Ваша учетная запись не может изменять чувствительные настройки каналов."
+    "Your account cannot edit sensitive channel settings.": "Ваша учетная запись не может изменять чувствительные настройки каналов.",
+    "Claude API address": "Адрес API Claude",
+    "Claude Code Collector": "Сборщик Claude Code",
+    "Claude Code platform": "Платформа Claude Code",
+    "Claude Code usage reporting must be enabled by the administrator.": "Администратор должен включить отчётность об использовании Claude Code.",
+    "Copy Claude Code installer command": "Скопировать команду установки Claude Code",
+    "Enter a valid HTTP(S) Claude API address without credentials, query parameters, or fragments.": "Введите корректный HTTP(S)-адрес API Claude без учётных данных, параметров запроса и фрагментов.",
+    "Gateway usage is excluded. After installation, restart Claude Code CLI and VS Code sessions.": "Использование через шлюз исключается. После установки перезапустите сеансы Claude Code CLI и VS Code.",
+    "Generate a command, then run it on the device where Claude Code runs.": "Создайте команду и выполните её на устройстве, где работает Claude Code.",
+    "Install Claude Code Collector": "Установить сборщик Claude Code",
+    "Install one collector for Claude Code CLI and the official VS Code extension.": "Установите один сборщик для Claude Code CLI и официального расширения VS Code.",
+    "Sign in as the selected user to generate a Claude Code installer command.": "Войдите как выбранный пользователь, чтобы создать команду установки Claude Code.",
+    "This address is already metered by this gateway.": "Использование этого адреса уже учитывается данным шлюзом.",
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Укажите адрес из настроек Claude Code. При несовпадении установка остановится. Не указывайте API-ключи."
   }
 }

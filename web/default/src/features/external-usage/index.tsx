@@ -83,6 +83,7 @@ import {
   searchExternalUsageTargetUsers,
   upsertExternalUsageModelMapping,
 } from './api'
+import { ClaudeInstallerCard } from './claude-installer-card'
 import {
   buildInstallerCommandCardCopy,
   normalizeInstallerCommandExpiry,
@@ -208,6 +209,8 @@ function getExternalUsageSourceLabel(
       return t('Cursor')
     case 'codex':
       return t('Codex')
+    case 'claude_code':
+      return 'Claude Code'
     case 'zcode':
       return t('ZCode')
     case 'minimax_code':
@@ -1125,7 +1128,7 @@ export function ExternalUsage() {
                         <ToggleGroupItem
                           key={option.value}
                           value={option.value}
-                          className='min-w-24 data-pressed:bg-primary data-pressed:text-primary-foreground data-pressed:border-primary'
+                          className='data-pressed:bg-primary data-pressed:text-primary-foreground data-pressed:border-primary min-w-24'
                         >
                           {option.label}
                         </ToggleGroupItem>
@@ -1161,6 +1164,12 @@ export function ExternalUsage() {
                 )}
               </CardContent>
             </Card>
+
+            <ClaudeInstallerCard
+              key={selectedUserId ?? 'self'}
+              canRequest={canRequestInstallerCommand}
+              enabled={configuredClientSources.includes('claude_code')}
+            />
 
             <Card>
               <CardHeader>

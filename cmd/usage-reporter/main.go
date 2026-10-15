@@ -37,7 +37,39 @@ func runReporter() error {
 	configureClaude := flag.Bool("configure-claude", false, "Merge telemetry into Claude user settings and exit")
 	claudeSettings := flag.String("claude-settings", "", "Claude user settings.json (defaults to CLAUDE_CONFIG_DIR/settings.json or ~/.claude/settings.json)")
 	claudeUpstream := flag.String("claude-upstream", "", "Explicit effective upstream URL for the Claude telemetry profile")
+	installClaude := flag.Bool("install-claude", false, "Exchange a one-time Claude install token and configure telemetry")
+	installToken := flag.String("install-token", "", "One-time Claude installer token")
 	flag.Parse()
+	if *installClaude {
+		if *configPath == "" || *server == "" || *installToken == "" {
+			return errors.New("--install-claude requires --server, --install-token and --config")
+		}
+		path, err := expandPath(*configPath)
+		if err != nil {
+			return err
+		}
+		path, err = filepath.Abs(path)
+		if err != nil {
+			return err
+		}
+		settings := *claudeSettings
+		if settings == "" {
+			dir := os.Getenv("CLAUDE_CONFIG_DIR")
+			if dir == "" {
+				dir = "~/.claude"
+			}
+			settings = filepath.Join(dir, "settings.json")
+		}
+		settings, err = expandPath(settings)
+		if err != nil {
+			return err
+		}
+		if err := usagereporter.InstallClaudeReporter(*server, *installToken, path, settings); err != nil {
+			return err
+		}
+		fmt.Println("Claude reporter configured; restart Claude Code CLI and VS Code sessions")
+		return nil
+	}
 
 	overrideConfig := usagereporter.Config{
 		Server:     *server,

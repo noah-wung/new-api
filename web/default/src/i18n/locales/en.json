@@ -5349,6 +5349,19 @@
     "You can still edit non-sensitive operations fields such as models, groups, priority, and weight.": "You can still edit non-sensitive operations fields such as models, groups, priority, and weight.",
     "You do not have permission to edit sensitive channel settings.": "You do not have permission to edit sensitive channel settings.",
     "Your account can edit sensitive channel settings.": "Your account can edit sensitive channel settings.",
-    "Your account cannot edit sensitive channel settings.": "Your account cannot edit sensitive channel settings."
+    "Your account cannot edit sensitive channel settings.": "Your account cannot edit sensitive channel settings.",
+    "Claude API address": "Claude API address",
+    "Claude Code Collector": "Claude Code Collector",
+    "Claude Code platform": "Claude Code platform",
+    "Claude Code usage reporting must be enabled by the administrator.": "Claude Code usage reporting must be enabled by the administrator.",
+    "Copy Claude Code installer command": "Copy Claude Code installer command",
+    "Enter a valid HTTP(S) Claude API address without credentials, query parameters, or fragments.": "Enter a valid HTTP(S) Claude API address without credentials, query parameters, or fragments.",
+    "Gateway usage is excluded. After installation, restart Claude Code CLI and VS Code sessions.": "Gateway usage is excluded. After installation, restart Claude Code CLI and VS Code sessions.",
+    "Generate a command, then run it on the device where Claude Code runs.": "Generate a command, then run it on the device where Claude Code runs.",
+    "Install Claude Code Collector": "Install Claude Code Collector",
+    "Install one collector for Claude Code CLI and the official VS Code extension.": "Install one collector for Claude Code CLI and the official VS Code extension.",
+    "Sign in as the selected user to generate a Claude Code installer command.": "Sign in as the selected user to generate a Claude Code installer command.",
+    "This address is already metered by this gateway.": "This address is already metered by this gateway.",
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys."
   }
 }

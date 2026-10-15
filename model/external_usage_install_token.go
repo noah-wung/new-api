@@ -8,16 +8,18 @@ import (
 )
 
 type ExternalUsageInstallToken struct {
-	Id          int    `json:"id"`
-	UserID      int    `json:"user_id" gorm:"index"`
-	Source      string `json:"source" gorm:"type:varchar(32);default:'';index"`
-	TokenPrefix string `json:"token_prefix" gorm:"type:varchar(24);default:'';index"`
-	TokenHash   string `json:"-" gorm:"type:varchar(128);uniqueIndex"`
-	Status      string `json:"status" gorm:"type:varchar(32);default:'active';index"`
-	ExpiresAt   int64  `json:"expires_at" gorm:"bigint;index"`
-	ConsumedAt  int64  `json:"consumed_at" gorm:"bigint"`
-	CreatedAt   int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt   int64  `json:"updated_at" gorm:"bigint"`
+	Id                int    `json:"id"`
+	UserID            int    `json:"user_id" gorm:"index"`
+	Source            string `json:"source" gorm:"type:varchar(32);default:'';index"`
+	UpstreamURL       string `json:"upstream_url" gorm:"type:varchar(512);default:''"`
+	UpstreamIsGateway bool   `json:"upstream_is_gateway"`
+	TokenPrefix       string `json:"token_prefix" gorm:"type:varchar(24);default:'';index"`
+	TokenHash         string `json:"-" gorm:"type:varchar(128);uniqueIndex"`
+	Status            string `json:"status" gorm:"type:varchar(32);default:'active';index"`
+	ExpiresAt         int64  `json:"expires_at" gorm:"bigint;index"`
+	ConsumedAt        int64  `json:"consumed_at" gorm:"bigint"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt         int64  `json:"updated_at" gorm:"bigint"`
 }
 
 func (t *ExternalUsageInstallToken) BeforeCreate(tx *gorm.DB) error {

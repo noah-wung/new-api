@@ -224,37 +224,43 @@ func GetExternalUsageReporterInstallScript(c *gin.Context) {
 	if !ensureExternalUsageEnabled(c) {
 		return
 	}
-	if !ensureExternalUsageSourceEnabled(c, model.ExternalUsageSourceCodex) {
-		return
-	}
-
+	source := model.ExternalUsageSourceCodex
 	platform := ""
 	switch strings.TrimSpace(c.Param("script")) {
 	case "install.sh":
 		platform = service.ExternalUsageInstallerPlatformMacOS
 	case "install.ps1":
 		platform = service.ExternalUsageInstallerPlatformWindows
+	case "install-claude.sh":
+		platform = service.ExternalUsageInstallerPlatformMacOS
+		source = model.ExternalUsageSourceClaudeCode
+	case "install-claude.ps1":
+		platform = service.ExternalUsageInstallerPlatformWindows
+		source = model.ExternalUsageSourceClaudeCode
 	default:
 		common.ApiErrorMsg(c, "unsupported installer script")
 		return
 	}
-
-	if _, err := service.ValidateCodexInstallToken(c.Query("token")); err != nil {
+	if !ensureExternalUsageSourceEnabled(c, source) {
+		return
+	}
+	var err error
+	if source == model.ExternalUsageSourceClaudeCode {
+		_, err = service.ValidateClaudeInstallToken(c.Query("token"))
+	} else {
+		_, err = service.ValidateCodexInstallToken(c.Query("token"))
+	}
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-
 	script, err := service.BuildInstallScript(service.BuildInstallScriptParams{
-		Platform:         platform,
-		ServiceURL:       resolveExternalUsageInstallerServiceURL(c),
-		InstallToken:     c.Query("token"),
-		AcceptWindowDays: external_usage_setting.GetSetting().AcceptWindowDays,
+		Source: source, Platform: platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c), InstallToken: c.Query("token"), AcceptWindowDays: external_usage_setting.GetSetting().AcceptWindowDays,
 	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(script))
 }
 

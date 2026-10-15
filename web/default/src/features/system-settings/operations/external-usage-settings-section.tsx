@@ -278,7 +278,7 @@ export function ExternalUsageSettingsSection({
                 <FormControl>
                   <Textarea
                     rows={5}
-                    placeholder={'codex\nzcode\nminimax_code'}
+                    placeholder={'codex\nclaude_code\nzcode\nminimax_code'}
                     {...field}
                   />
                 </FormControl>

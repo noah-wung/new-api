@@ -36,6 +36,7 @@ type ConsumeCodexInstallTokenResult struct {
 }
 
 type BuildInstallScriptParams struct {
+	Source           string
 	Platform         string
 	ServiceURL       string
 	InstallToken     string
@@ -118,6 +119,12 @@ func BuildInstallScript(params BuildInstallScriptParams) (string, error) {
 	if err := ValidateInstallerPlatform(params.Platform); err != nil {
 		return "", err
 	}
+	if params.Source == model.ExternalUsageSourceClaudeCode {
+		return buildClaudeInstallScript(params), nil
+	}
+	if params.Source != "" && params.Source != model.ExternalUsageSourceCodex {
+		return "", errors.New("unsupported installer source")
+	}
 	switch strings.TrimSpace(params.Platform) {
 	case ExternalUsageInstallerPlatformMacOS:
 		return buildMacOSInstallScript(params), nil
@@ -133,6 +140,12 @@ func BuildInstallerCommand(params BuildInstallScriptParams) (string, error) {
 	}
 	serviceURL := strings.TrimRight(strings.TrimSpace(params.ServiceURL), "/")
 	installToken := strings.TrimSpace(params.InstallToken)
+	if params.Source == model.ExternalUsageSourceClaudeCode {
+		return buildClaudeInstallerCommand(params)
+	}
+	if params.Source != "" && params.Source != model.ExternalUsageSourceCodex {
+		return "", errors.New("unsupported installer source")
+	}
 	switch strings.TrimSpace(params.Platform) {
 	case ExternalUsageInstallerPlatformMacOS:
 		return fmt.Sprintf("bash -c \"$(curl -fsSL '%s/api/external-usage/reporter/install.sh?token=%s')\"", serviceURL, installToken), nil
@@ -463,6 +476,10 @@ func ValidateInstallerPlatform(platform string) error {
 }
 
 func validateActiveCodexInstallTokenTx(tx *gorm.DB, rawToken string) (*model.ExternalUsageInstallToken, error) {
+	return validateActiveUsageInstallTokenTx(tx, rawToken, model.ExternalUsageSourceCodex)
+}
+
+func validateActiveUsageInstallTokenTx(tx *gorm.DB, rawToken, source string) (*model.ExternalUsageInstallToken, error) {
 	rawToken = strings.TrimSpace(rawToken)
 	if rawToken == "" {
 		return nil, model.ErrExternalUsageInstallTokenNotFound
@@ -481,7 +498,7 @@ func validateActiveCodexInstallTokenTx(tx *gorm.DB, rawToken string) (*model.Ext
 	if installToken.ExpiresAt > 0 && installToken.ExpiresAt < now {
 		return nil, model.ErrExternalUsageInstallTokenExpired
 	}
-	if installToken.Source != model.ExternalUsageSourceCodex {
+	if installToken.Status != model.ExternalUsageStatusActive || installToken.Source != source {
 		return nil, errors.New("unsupported install token source")
 	}
 	return installToken, nil

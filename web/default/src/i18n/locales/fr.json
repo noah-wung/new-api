@@ -5349,6 +5349,19 @@
     "You can still edit non-sensitive operations fields such as models, groups, priority, and weight.": "Vous pouvez toujours modifier les champs opérationnels non sensibles, comme les modèles, les groupes, la priorité et le poids.",
     "You do not have permission to edit sensitive channel settings.": "Vous n’avez pas l’autorisation de modifier les paramètres sensibles des canaux.",
     "Your account can edit sensitive channel settings.": "Votre compte peut modifier les paramètres sensibles des canaux.",
-    "Your account cannot edit sensitive channel settings.": "Votre compte ne peut pas modifier les paramètres sensibles des canaux."
+    "Your account cannot edit sensitive channel settings.": "Votre compte ne peut pas modifier les paramètres sensibles des canaux.",
+    "Claude API address": "Adresse de l’API Claude",
+    "Claude Code Collector": "Collecteur Claude Code",
+    "Claude Code platform": "Plateforme Claude Code",
+    "Claude Code usage reporting must be enabled by the administrator.": "L’administrateur doit activer le rapport d’utilisation de Claude Code.",
+    "Copy Claude Code installer command": "Copier la commande d’installation Claude Code",
+    "Enter a valid HTTP(S) Claude API address without credentials, query parameters, or fragments.": "Saisissez une adresse HTTP(S) d’API Claude valide, sans identifiants, paramètres ni fragment.",
+    "Gateway usage is excluded. After installation, restart Claude Code CLI and VS Code sessions.": "L’utilisation de la passerelle est exclue. Après l’installation, redémarrez les sessions Claude Code CLI et VS Code.",
+    "Generate a command, then run it on the device where Claude Code runs.": "Générez une commande, puis exécutez-la sur l’appareil où fonctionne Claude Code.",
+    "Install Claude Code Collector": "Installer le collecteur Claude Code",
+    "Install one collector for Claude Code CLI and the official VS Code extension.": "Installez un collecteur pour Claude Code CLI et l’extension officielle VS Code.",
+    "Sign in as the selected user to generate a Claude Code installer command.": "Connectez-vous avec le compte sélectionné pour générer une commande d’installation Claude Code.",
+    "This address is already metered by this gateway.": "L’utilisation de cette adresse est déjà comptabilisée par cette passerelle.",
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Utilisez l’adresse configurée dans Claude Code. L’installation s’arrête si elle diffère. N’incluez aucune clé API."
   }
 }

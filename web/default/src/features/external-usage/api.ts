@@ -19,7 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import { searchUsers } from '@/features/users/api'
 import type { User } from '@/features/users/types'
-import type { ExternalUsageInstallerPlatform } from './installer-command'
+import type {
+  ExternalUsageInstallerPlatform,
+  ExternalUsageInstallerCommandData,
+} from './installer-command'
 
 export async function getExternalUsageOverview(userId?: number) {
   const query = new URLSearchParams()
@@ -58,7 +61,22 @@ export async function revokeExternalUsageDevice(id: number) {
 export async function createExternalUsageCodexInstallerCommand(payload: {
   platform: ExternalUsageInstallerPlatform
 }) {
-  const res = await api.post('/api/external-usage/self/codex-installer-command', payload)
+  const res = await api.post(
+    '/api/external-usage/self/codex-installer-command',
+    payload
+  )
+  return res.data
+}
+
+export async function createExternalUsageClaudeInstallerCommand(payload: {
+  platform: ExternalUsageInstallerPlatform
+  upstream_url: string
+  upstream_is_gateway: boolean
+}): Promise<{ success: boolean; data?: ExternalUsageInstallerCommandData }> {
+  const res = await api.post(
+    '/api/external-usage/self/claude-code-installer-command',
+    payload
+  )
   return res.data
 }
 
@@ -103,21 +121,29 @@ export async function importExternalUsageCursorCSV(payload: {
   const formData = new FormData()
   formData.append('user_id', String(payload.userId))
   formData.append('file', payload.file)
-  const res = await api.post('/api/external-usage/admin/cursor-import', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  })
+  const res = await api.post(
+    '/api/external-usage/admin/cursor-import',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  )
   return res.data
 }
 
 export async function deleteExternalUsageCursorImportBatch(id: number) {
-  const res = await api.delete(`/api/external-usage/admin/cursor-import-batches/${id}`)
+  const res = await api.delete(
+    `/api/external-usage/admin/cursor-import-batches/${id}`
+  )
   return res.data
 }
 
 export async function replayExternalUsageCursorImportBatch(id: number) {
-  const res = await api.post(`/api/external-usage/admin/cursor-import-batches/${id}/replay`)
+  const res = await api.post(
+    `/api/external-usage/admin/cursor-import-batches/${id}/replay`
+  )
   return res.data
 }
 
@@ -127,7 +153,10 @@ export async function rebuildExternalUsageAggregates(payload: {
   start_time?: number
   end_time?: number
 }) {
-  const res = await api.post('/api/external-usage/admin/aggregates/rebuild', payload)
+  const res = await api.post(
+    '/api/external-usage/admin/aggregates/rebuild',
+    payload
+  )
   return res.data
 }
 
@@ -142,7 +171,9 @@ export async function listExternalUsageDetails(params: {
   if (params.source) query.set('source', params.source)
   if (params.p != null) query.set('p', String(params.p))
   if (params.size != null) query.set('size', String(params.size))
-  const res = await api.get(`/api/external-usage/admin/details?${query.toString()}`)
+  const res = await api.get(
+    `/api/external-usage/admin/details?${query.toString()}`
+  )
   return res.data
 }
 
@@ -161,7 +192,10 @@ export async function upsertExternalUsageModelMapping(payload: {
   source_model_name: string
   normalized_model_name: string
 }) {
-  const res = await api.post('/api/external-usage/admin/model-mappings', payload)
+  const res = await api.post(
+    '/api/external-usage/admin/model-mappings',
+    payload
+  )
   return res.data
 }
 
@@ -175,7 +209,10 @@ export async function deleteExternalUsageModelData(payload: {
   source: string
   normalized_model_name: string
 }) {
-  const res = await api.post('/api/external-usage/admin/model-data/delete', payload)
+  const res = await api.post(
+    '/api/external-usage/admin/model-data/delete',
+    payload
+  )
   return res.data
 }
 
