@@ -16,13 +16,17 @@ func buildClaudeInstallerCommand(params BuildInstallScriptParams) (string, error
 		return fmt.Sprintf(`bash -c "$(curl -fsSL %s)"`, quoteInstallerLiteral(endpoint)), nil
 	}
 	endpoint += "ps1?token=" + url.QueryEscape(params.InstallToken)
+	return buildWindowsInstallerCommand(endpoint), nil
+}
+
+func buildWindowsInstallerCommand(endpoint string) string {
 	command := "iwr '" + strings.ReplaceAll(endpoint, "'", "''") + "' -UseBasicParsing | iex"
 	units := utf16.Encode([]rune(command))
 	encoded := make([]byte, len(units)*2)
 	for i, unit := range units {
 		binary.LittleEndian.PutUint16(encoded[i*2:], unit)
 	}
-	return "powershell -ExecutionPolicy Bypass -EncodedCommand " + base64.StdEncoding.EncodeToString(encoded), nil
+	return "powershell -ExecutionPolicy Bypass -EncodedCommand " + base64.StdEncoding.EncodeToString(encoded)
 }
 
 func quoteInstallerLiteral(value string) string {
@@ -30,11 +34,17 @@ func quoteInstallerLiteral(value string) string {
 }
 
 func buildClaudeInstallScript(params BuildInstallScriptParams) string {
+	macDownload := `curl -fsSL "$SERVICE_URL/api/external-usage/reporter/binary/$TARGET/usage-reporter?source=claude_code" -o "$NEXT_BINARY"`
+	windowsDownload := `Invoke-WebRequest -Uri "$ServiceUrl/api/external-usage/reporter/binary/windows-amd64/usage-reporter.exe?source=claude_code" -OutFile $TempBinary -UseBasicParsing`
+	if params.BundledBinary {
+		macDownload = `cp "$CLIENT_BUNDLE_BINARY" "$NEXT_BINARY"`
+		windowsDownload = `Copy-Item -LiteralPath $ClientBundleBinary -Destination $TempBinary -Force`
+	}
 	server := strings.TrimRight(strings.TrimSpace(params.ServiceURL), "/")
 	if params.Platform == ExternalUsageInstallerPlatformWindows {
-		return strings.NewReplacer("__SERVER__", "'"+strings.ReplaceAll(server, "'", "''")+"'", "__TOKEN__", "'"+strings.ReplaceAll(params.InstallToken, "'", "''")+"'").Replace(claudeWindowsInstallScript)
+		return strings.NewReplacer("__SERVER__", "'"+strings.ReplaceAll(server, "'", "''")+"'", "__TOKEN__", "'"+strings.ReplaceAll(params.InstallToken, "'", "''")+"'").Replace(strings.ReplaceAll(claudeWindowsInstallScript, "__DOWNLOAD__", windowsDownload))
 	}
-	return strings.NewReplacer("__SERVER__", quoteInstallerLiteral(server), "__TOKEN__", quoteInstallerLiteral(params.InstallToken)).Replace(claudeMacOSInstallScript)
+	return strings.NewReplacer("__SERVER__", quoteInstallerLiteral(server), "__TOKEN__", quoteInstallerLiteral(params.InstallToken)).Replace(strings.ReplaceAll(claudeMacOSInstallScript, "__DOWNLOAD__", macDownload))
 }
 
 const claudeMacOSInstallScript = `#!/bin/sh
@@ -56,7 +66,7 @@ case "$(uname -m)" in
   *) echo "unsupported macOS architecture" >&2; exit 1 ;;
 esac
 NEXT_BINARY="$TMP_DIR/usage-reporter"
-curl -fsSL "$SERVICE_URL/api/external-usage/reporter/binary/$TARGET/usage-reporter?source=claude_code" -o "$NEXT_BINARY"
+__DOWNLOAD__
 chmod 700 "$NEXT_BINARY"
 "$NEXT_BINARY" --install-claude --server "$SERVICE_URL" --install-token "$INSTALL_TOKEN" --config "$CONFIG_PATH"
 
@@ -98,7 +108,7 @@ $InstallLogPath = Join-Path $InstallRoot 'install.log'
 $TempBinary = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString() + '.exe')
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 try {
-  Invoke-WebRequest -Uri "$ServiceUrl/api/external-usage/reporter/binary/windows-amd64/usage-reporter.exe?source=claude_code" -OutFile $TempBinary -UseBasicParsing
+  __DOWNLOAD__
   $InstallArguments = ('--install-claude --server "{0}" --install-token "{1}" --config "{2}" --log-file "{3}"' -f $ServiceUrl, $InstallToken, $ConfigPath, $InstallLogPath)
   $InstallRun = Start-Process -FilePath $TempBinary -ArgumentList $InstallArguments -WindowStyle Hidden -Wait -PassThru
   if ($InstallRun.ExitCode -ne 0) { throw "Claude configuration failed; existing scheduled task was not replaced. See $InstallLogPath" }

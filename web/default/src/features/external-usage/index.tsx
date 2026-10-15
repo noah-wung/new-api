@@ -61,12 +61,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { CopyButton } from '@/components/copy-button'
 import { Main } from '@/components/layout'
 import type { User } from '@/features/users/types'
 import {
-  createExternalUsageCodexInstallerCommand,
   createExternalUsageDeviceCredential,
   deleteExternalUsageModelMapping,
   rebuildExternalUsageAggregates,
@@ -83,12 +80,7 @@ import {
   searchExternalUsageTargetUsers,
   upsertExternalUsageModelMapping,
 } from './api'
-import { ClaudeInstallerCard } from './claude-installer-card'
-import {
-  buildInstallerCommandCardCopy,
-  normalizeInstallerCommandExpiry,
-  type ExternalUsageInstallerPlatform,
-} from './installer-command'
+import { ClientInstallerCard } from './client-installer-card'
 import {
   canRequestExternalUsageInstallerCommand,
   initializeExternalUsageSelection,
@@ -274,29 +266,6 @@ function toUnixTimestamp(value: string) {
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : undefined
 }
 
-function SetupCommandBlock(props: {
-  title: string
-  value: string
-  copiedLabel: string
-}) {
-  return (
-    <div className='grid gap-2'>
-      <div className='flex items-center justify-between gap-3'>
-        <Label>{props.title}</Label>
-        <CopyButton
-          value={props.value}
-          tooltip={props.title}
-          successTooltip={props.copiedLabel}
-          aria-label={props.title}
-        />
-      </div>
-      <pre className='bg-muted/40 overflow-x-auto rounded-md border px-3 py-2 font-mono text-xs leading-6 whitespace-pre-wrap'>
-        {props.value}
-      </pre>
-    </div>
-  )
-}
-
 export function ExternalUsage() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
@@ -339,12 +308,6 @@ export function ExternalUsage() {
   const [detailSource, setDetailSource] = useState('')
   const [detailPage, setDetailPage] = useState(1)
   const [detailTotal, setDetailTotal] = useState(0)
-  const [installerPlatform, setInstallerPlatform] =
-    useState<ExternalUsageInstallerPlatform>('macos')
-  const [installerCommand, setInstallerCommand] = useState('')
-  const [installerCommandExpiresAt, setInstallerCommandExpiresAt] = useState<
-    number | null
-  >(null)
   const [loading, setLoading] = useState(false)
   const loadRequestIdRef = useRef(0)
   const importFileInputRef = useRef<HTMLInputElement | null>(null)
@@ -484,11 +447,6 @@ export function ExternalUsage() {
     })
   }, [configuredClientSources])
 
-  useEffect(() => {
-    setInstallerCommand('')
-    setInstallerCommandExpiresAt(null)
-  }, [installerPlatform, selectedUserId])
-
   const deviceRows = overview?.devices ?? []
   const summaryRows = overview?.summary ?? []
   const detailTotalPages = Math.max(1, Math.ceil(detailTotal / detailPageSize))
@@ -500,11 +458,6 @@ export function ExternalUsage() {
       }),
     [configuredClientSources]
   )
-  const installerCommandCopy = useMemo(
-    () => buildInstallerCommandCardCopy((key) => t(key)),
-    [t]
-  )
-
   const summaryCards = useMemo(
     () => [
       {
@@ -552,24 +505,6 @@ export function ExternalUsage() {
     try {
       await revokeExternalUsageDevice(id)
       await loadData()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleCreateInstallerCommand = async () => {
-    if (!canRequestInstallerCommand) return
-    setLoading(true)
-    try {
-      const res = await createExternalUsageCodexInstallerCommand({
-        platform: installerPlatform,
-      })
-      if (res?.success) {
-        setInstallerCommand(res.data?.command ?? '')
-        setInstallerCommandExpiresAt(
-          normalizeInstallerCommandExpiry(res.data?.expires_at)
-        )
-      }
     } finally {
       setLoading(false)
     }
@@ -1089,86 +1024,10 @@ export function ExternalUsage() {
           </div>
 
           <div className='flex flex-col gap-6'>
-            <Card>
-              <CardHeader>
-                <CardTitle>{installerCommandCopy.title}</CardTitle>
-                <CardDescription>
-                  {installerCommandCopy.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='flex flex-col gap-4'>
-                {isAdmin && !canRequestInstallerCommand ? (
-                  <Alert>
-                    <AlertTitle>
-                      {installerCommandCopy.unavailableTitle}
-                    </AlertTitle>
-                    <AlertDescription>
-                      {installerCommandCopy.unavailableDescription}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-                <div className='grid gap-4'>
-                  <div className='grid gap-2'>
-                    <Label>{installerCommandCopy.platformLabel}</Label>
-                    <ToggleGroup
-                      variant='outline'
-                      value={[installerPlatform]}
-                      onValueChange={(groupValue) => {
-                        // Base UI passes an array even in single-select mode.
-                        const next = groupValue[groupValue.length - 1]
-                        if (next) {
-                          setInstallerPlatform(
-                            next as ExternalUsageInstallerPlatform
-                          )
-                        }
-                      }}
-                      aria-label={installerCommandCopy.platformLabel}
-                    >
-                      {installerCommandCopy.platformOptions.map((option) => (
-                        <ToggleGroupItem
-                          key={option.value}
-                          value={option.value}
-                          className='data-pressed:bg-primary data-pressed:text-primary-foreground data-pressed:border-primary min-w-24'
-                        >
-                          {option.label}
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  </div>
-                  <Button
-                    disabled={loading || !canRequestInstallerCommand}
-                    onClick={() => void handleCreateInstallerCommand()}
-                  >
-                    <HardDriveUpload />
-                    {installerCommandCopy.actionLabel}
-                  </Button>
-                </div>
-                {installerCommand ? (
-                  <div className='grid gap-4'>
-                    {installerCommandExpiresAt ? (
-                      <div className='text-muted-foreground text-sm'>
-                        {installerCommandCopy.expiresLabel}:{' '}
-                        {formatTimestamp(installerCommandExpiresAt)}
-                      </div>
-                    ) : null}
-                    <SetupCommandBlock
-                      title={installerCommandCopy.commandLabel}
-                      value={installerCommand}
-                      copiedLabel={t('Copied!')}
-                    />
-                  </div>
-                ) : (
-                  <p className='text-muted-foreground text-sm'>
-                    {installerCommandCopy.emptyState}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            <ClaudeInstallerCard
-              key={selectedUserId ?? 'self'}
+            <ClientInstallerCard
+              key={`${selectedUserId ?? 'self'}:${configuredClientSources.join(',')}`}
               canRequest={canRequestInstallerCommand}
-              enabled={configuredClientSources.includes('claude_code')}
+              enabledSources={configuredClientSources}
             />
 
             <Card>

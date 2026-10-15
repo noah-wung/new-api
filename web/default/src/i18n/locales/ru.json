@@ -5362,6 +5362,17 @@
     "Install one collector for Claude Code CLI and the official VS Code extension.": "Установите один сборщик для Claude Code CLI и официального расширения VS Code.",
     "Sign in as the selected user to generate a Claude Code installer command.": "Войдите как выбранный пользователь, чтобы создать команду установки Claude Code.",
     "This address is already metered by this gateway.": "Использование этого адреса уже учитывается данным шлюзом.",
-    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Укажите адрес из настроек Claude Code. При несовпадении установка остановится. Не указывайте API-ключи."
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Укажите адрес из настроек Claude Code. При несовпадении установка остановится. Не указывайте API-ключи.",
+    "Client Usage Collector": "Сборщик использования клиентов",
+    "Select your clients and run one command to install their collectors. Reports are sent every 5 minutes in the background.": "Выберите клиенты и выполните одну команду для установки сборщиков. Отчёты отправляются в фоне каждые 5 минут.",
+    "Client usage reporting must be enabled by the administrator.": "Администратор должен включить отчёты об использовании клиентов.",
+    "Sign in as the selected user to generate an installer command.": "Войдите под выбранным пользователем, чтобы создать команду установки.",
+    "Clients to collect": "Клиенты для сбора данных",
+    "Claude Code (CLI and VS Code)": "Claude Code (CLI и VS Code)",
+    "Not enabled": "Не включено",
+    "Select at least one client.": "Выберите хотя бы один клиент.",
+    "Install Selected Collectors": "Установить выбранные сборщики",
+    "Copy installer command": "Скопировать команду установки",
+    "Generate a command, then run it once on the device where your clients run.": "Создайте команду и выполните её один раз на устройстве, где работают ваши клиенты."
   }
 }

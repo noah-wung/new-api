@@ -304,6 +304,7 @@ func SetApiRouter(router *gin.Engine) {
 			externalUsageSelfRoute := externalUsageRoute.Group("/self")
 			externalUsageSelfRoute.Use(middleware.UserAuth())
 			{
+				externalUsageSelfRoute.POST("/client-installer-command", controller.CreateExternalUsageSelfClientInstallerCommand)
 				externalUsageSelfRoute.POST("/codex-installer-command", controller.CreateExternalUsageSelfCodexInstallerCommand)
 				externalUsageSelfRoute.POST("/claude-code-installer-command", controller.CreateExternalUsageSelfClaudeInstallerCommand)
 				externalUsageSelfRoute.GET("/overview", controller.GetExternalUsageOverview)

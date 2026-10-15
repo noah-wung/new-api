@@ -5362,6 +5362,17 @@
     "Install one collector for Claude Code CLI and the official VS Code extension.": "Cài một trình thu thập cho Claude Code CLI và tiện ích VS Code chính thức.",
     "Sign in as the selected user to generate a Claude Code installer command.": "Đăng nhập bằng người dùng đã chọn để tạo lệnh cài đặt Claude Code.",
     "This address is already metered by this gateway.": "Lượng sử dụng của địa chỉ này đã được cổng này ghi nhận.",
-    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Dùng địa chỉ đã cấu hình trong Claude Code. Quá trình cài đặt sẽ dừng nếu không khớp. Không nhập khóa API."
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Dùng địa chỉ đã cấu hình trong Claude Code. Quá trình cài đặt sẽ dừng nếu không khớp. Không nhập khóa API.",
+    "Client Usage Collector": "Trình thu thập mức sử dụng ứng dụng",
+    "Select your clients and run one command to install their collectors. Reports are sent every 5 minutes in the background.": "Chọn ứng dụng và chạy một lệnh để cài đặt các trình thu thập. Dữ liệu được gửi nền mỗi 5 phút.",
+    "Client usage reporting must be enabled by the administrator.": "Quản trị viên cần bật tính năng báo cáo mức sử dụng ứng dụng.",
+    "Sign in as the selected user to generate an installer command.": "Đăng nhập bằng người dùng đã chọn để tạo lệnh cài đặt.",
+    "Clients to collect": "Ứng dụng cần thu thập",
+    "Claude Code (CLI and VS Code)": "Claude Code (CLI và VS Code)",
+    "Not enabled": "Chưa bật",
+    "Select at least one client.": "Chọn ít nhất một ứng dụng.",
+    "Install Selected Collectors": "Cài đặt các trình thu thập đã chọn",
+    "Copy installer command": "Sao chép lệnh cài đặt",
+    "Generate a command, then run it once on the device where your clients run.": "Tạo lệnh rồi chạy một lần trên thiết bị đang sử dụng các ứng dụng này."
   }
 }

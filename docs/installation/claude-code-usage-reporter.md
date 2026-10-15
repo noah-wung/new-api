@@ -24,14 +24,14 @@
 
 ### 通过个人后台安装
 
-登录后进入“外部用量”，在 Codex 安装区域下方找到“Claude Code 采集器”：
+登录后进入“外部用量”，使用统一的“客户端用量采集器”入口；可同时勾选 Codex 和 Claude Code，一条命令安装全部所选采集器。完整流程见 [统一安装说明](client-usage-collectors.md)。
 
-1. 选择 macOS 或 Windows。
+1. 选择 macOS 或 Windows，并勾选 Claude Code。
 2. 填写 Claude Code 实际使用的 API 地址；若是本网关的地址或别名，勾选“此地址的用量已由本网关计量”。地址不能包含 API 密钥、认证信息、查询参数或片段。
-3. 点击“安装 Claude Code 采集器”，复制生成的限时命令，在运行 Claude Code 的设备终端执行。
+3. 点击“安装所选采集器”，复制生成的限时命令，在运行 Claude Code 的设备终端执行。
 4. 安装脚本下载工具、兑换绑定当前登录用户的单次令牌、核对本机路由、合并 telemetry 配置，并注册持续运行的用户后台服务。完成后重启 Claude Code CLI 和 VS Code 会话。
 
-来源未由管理员启用时，卡片会显示原因并禁用生成。管理员查看其他用户时不能代该用户生成命令；需以目标用户登录。路由选择保存在服务器令牌记录中，不能通过篡改下载 URL 改变，且令牌不能兑换为 Codex 凭据。
+来源未由管理员启用时，该客户端选项会禁用；其他已启用的客户端仍可安装。管理员查看其他用户时不能代该用户生成命令；需以目标用户登录。路由选择保存在服务器令牌记录中，不能通过篡改下载 URL 改变，且令牌不能兑换为 Codex 凭据。
 
 自动安装路径为 `~/.new-api-usage-reporter/claude/`，包含独立二进制、`config.json` 和状态文件；不会覆盖 Codex 的配置或后台任务。macOS 注册 `pro.newapi.usage-reporter.claude` LaunchAgent，Windows 注册 `new-api-claude-usage-reporter` 当前用户登录任务。相同账户、相同设备的有效旧上报凭据会复用，保留本机 token、过滤策略与待上报队列；来源权限不一致、设备被撤销或切换账户时重新签发，并隔离旧队列。
 

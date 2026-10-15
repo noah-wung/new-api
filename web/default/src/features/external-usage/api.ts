@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import { searchUsers } from '@/features/users/api'
 import type { User } from '@/features/users/types'
+import type { ClientInstallerInput } from './client-installer-schema'
 import type {
   ExternalUsageInstallerPlatform,
   ExternalUsageInstallerCommandData,
@@ -223,4 +224,14 @@ export async function searchExternalUsageTargetUsers(keyword: string) {
     page_size: 50,
   })
   return (res.data?.items ?? []) as User[]
+}
+
+export async function createExternalUsageClientInstallerCommand(
+  payload: ClientInstallerInput
+): Promise<{ success: boolean; data?: ExternalUsageInstallerCommandData }> {
+  const res = await api.post(
+    '/api/external-usage/self/client-installer-command',
+    payload
+  )
+  return res.data
 }

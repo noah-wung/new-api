@@ -5362,6 +5362,17 @@
     "Install one collector for Claude Code CLI and the official VS Code extension.": "Installez un collecteur pour Claude Code CLI et l’extension officielle VS Code.",
     "Sign in as the selected user to generate a Claude Code installer command.": "Connectez-vous avec le compte sélectionné pour générer une commande d’installation Claude Code.",
     "This address is already metered by this gateway.": "L’utilisation de cette adresse est déjà comptabilisée par cette passerelle.",
-    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Utilisez l’adresse configurée dans Claude Code. L’installation s’arrête si elle diffère. N’incluez aucune clé API."
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Utilisez l’adresse configurée dans Claude Code. L’installation s’arrête si elle diffère. N’incluez aucune clé API.",
+    "Client Usage Collector": "Collecteur d’utilisation des clients",
+    "Select your clients and run one command to install their collectors. Reports are sent every 5 minutes in the background.": "Sélectionnez vos clients et exécutez une seule commande pour installer leurs collecteurs. Les rapports sont envoyés en arrière-plan toutes les 5 minutes.",
+    "Client usage reporting must be enabled by the administrator.": "L’administrateur doit activer les rapports d’utilisation des clients.",
+    "Sign in as the selected user to generate an installer command.": "Connectez-vous en tant qu’utilisateur sélectionné pour générer une commande d’installation.",
+    "Clients to collect": "Clients à collecter",
+    "Claude Code (CLI and VS Code)": "Claude Code (CLI et VS Code)",
+    "Not enabled": "Non activé",
+    "Select at least one client.": "Sélectionnez au moins un client.",
+    "Install Selected Collectors": "Installer les collecteurs sélectionnés",
+    "Copy installer command": "Copier la commande d’installation",
+    "Generate a command, then run it once on the device where your clients run.": "Générez une commande, puis exécutez-la une seule fois sur l’appareil où vos clients fonctionnent."
   }
 }

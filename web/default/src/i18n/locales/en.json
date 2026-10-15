@@ -5362,6 +5362,17 @@
     "Install one collector for Claude Code CLI and the official VS Code extension.": "Install one collector for Claude Code CLI and the official VS Code extension.",
     "Sign in as the selected user to generate a Claude Code installer command.": "Sign in as the selected user to generate a Claude Code installer command.",
     "This address is already metered by this gateway.": "This address is already metered by this gateway.",
-    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys."
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.",
+    "Client Usage Collector": "Client Usage Collector",
+    "Select your clients and run one command to install their collectors. Reports are sent every 5 minutes in the background.": "Select your clients and run one command to install their collectors. Reports are sent every 5 minutes in the background.",
+    "Client usage reporting must be enabled by the administrator.": "Client usage reporting must be enabled by the administrator.",
+    "Sign in as the selected user to generate an installer command.": "Sign in as the selected user to generate an installer command.",
+    "Clients to collect": "Clients to collect",
+    "Claude Code (CLI and VS Code)": "Claude Code (CLI and VS Code)",
+    "Not enabled": "Not enabled",
+    "Select at least one client.": "Select at least one client.",
+    "Install Selected Collectors": "Install Selected Collectors",
+    "Copy installer command": "Copy installer command",
+    "Generate a command, then run it once on the device where your clients run.": "Generate a command, then run it once on the device where your clients run."
   }
 }

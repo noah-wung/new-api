@@ -5362,6 +5362,17 @@
     "Install one collector for Claude Code CLI and the official VS Code extension.": "安装一个采集器，即可采集 Claude Code CLI 和官方 VS Code 扩展的用量。",
     "Sign in as the selected user to generate a Claude Code installer command.": "请以所选用户登录，生成 Claude Code 安装命令。",
     "This address is already metered by this gateway.": "此地址的用量已由本网关计量。",
-    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "请填写 Claude Code 当前配置的地址。不一致时将停止安装，请勿填写 API 密钥。"
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "请填写 Claude Code 当前配置的地址。不一致时将停止安装，请勿填写 API 密钥。",
+    "Client Usage Collector": "客户端用量采集器",
+    "Select your clients and run one command to install their collectors. Reports are sent every 5 minutes in the background.": "选择客户端，只需执行一次命令即可安装所选采集器，之后每 5 分钟在后台上报。",
+    "Client usage reporting must be enabled by the administrator.": "管理员需要先启用客户端用量上报。",
+    "Sign in as the selected user to generate an installer command.": "请以所选用户登录后生成安装命令。",
+    "Clients to collect": "采集客户端",
+    "Claude Code (CLI and VS Code)": "Claude Code（命令行和 VS Code）",
+    "Not enabled": "未启用",
+    "Select at least one client.": "请至少选择一个客户端。",
+    "Install Selected Collectors": "安装所选采集器",
+    "Copy installer command": "复制安装命令",
+    "Generate a command, then run it once on the device where your clients run.": "生成命令后，在运行这些客户端的设备上执行一次即可。"
   }
 }

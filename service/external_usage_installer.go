@@ -37,6 +37,7 @@ type ConsumeCodexInstallTokenResult struct {
 }
 
 type BuildInstallScriptParams struct {
+	BundledBinary    bool
 	Source           string
 	Platform         string
 	ServiceURL       string
@@ -179,6 +180,10 @@ func ResolveUsageReporterBinarySpec(target string) (*UsageReporterBinarySpec, er
 }
 
 func buildMacOSInstallScript(params BuildInstallScriptParams) string {
+	download := `curl -fsSL "$BIN_URL" -o "$BIN_PATH"`
+	if params.BundledBinary {
+		download = `cp "$CLIENT_BUNDLE_BINARY" "$BIN_PATH"`
+	}
 	serviceURL := strings.TrimRight(strings.TrimSpace(params.ServiceURL), "/")
 	installToken := strings.TrimSpace(params.InstallToken)
 	return fmt.Sprintf(`#!/bin/sh
@@ -224,7 +229,7 @@ DEVICE_NAME="$(hostname 2>/dev/null || echo 'codex-macos')"
 DEVICE_FINGERPRINT="$(printf 'codex|%%s|%%s|%%s' "$TARGET" "$DEVICE_NAME" "$HOME" | shasum -a 256 | awk '{print $1}')"
 EXCHANGE_RESPONSE="$TMP_DIR/exchange.json"
 
-curl -fsSL "$BIN_URL" -o "$BIN_PATH"
+%s
 chmod +x "$BIN_PATH"
 
 PAYLOAD=$(printf '{"install_token":"%%s","device_name":"%%s","device_fingerprint":"%%s"}' "$INSTALL_TOKEN" "$DEVICE_NAME" "$DEVICE_FINGERPRINT")
@@ -291,10 +296,14 @@ launchctl unload "$PLIST_PATH" >/dev/null 2>&1 || true
 launchctl load -w "$PLIST_PATH"
 
 echo "Installed Codex usage reporting to $INSTALL_ROOT"
-`, serviceURL, installToken, params.AcceptWindowDays, int(usagereporter.DefaultReportInterval/time.Second))
+`, serviceURL, installToken, params.AcceptWindowDays, download, int(usagereporter.DefaultReportInterval/time.Second))
 }
 
 func buildWindowsInstallScript(params BuildInstallScriptParams) string {
+	download := `Invoke-WebRequest -Uri $BinUrl -OutFile $BinaryPath -UseBasicParsing`
+	if params.BundledBinary {
+		download = `Copy-Item -LiteralPath $ClientBundleBinary -Destination $BinaryPath -Force`
+	}
 	serviceURL := strings.TrimRight(strings.TrimSpace(params.ServiceURL), "/")
 	installToken := strings.TrimSpace(params.InstallToken)
 	return fmt.Sprintf(`$ErrorActionPreference = 'Stop'
@@ -317,7 +326,7 @@ $Hasher = [System.Security.Cryptography.SHA256]::Create()
 $DeviceFingerprintBytes = [System.Text.Encoding]::UTF8.GetBytes("codex|windows-amd64|$DeviceName|$env:USERPROFILE")
 $DeviceFingerprint = ([System.BitConverter]::ToString($Hasher.ComputeHash($DeviceFingerprintBytes))).Replace('-', '').ToLowerInvariant()
 
-Invoke-WebRequest -Uri $BinUrl -OutFile $BinaryPath -UseBasicParsing
+%s
 
 $ExchangePayload = @{
   install_token = $InstallToken
@@ -376,7 +385,7 @@ $Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
 
 Write-Host "Installed Codex usage reporting to $InstallRoot"
-`, serviceURL, installToken, params.AcceptWindowDays, int(usagereporter.DefaultReportInterval/time.Minute), int(usagereporter.DefaultReportInterval/time.Minute))
+`, serviceURL, installToken, params.AcceptWindowDays, download, int(usagereporter.DefaultReportInterval/time.Minute), int(usagereporter.DefaultReportInterval/time.Minute))
 }
 
 func usageReporterBinarySpecForTarget(target string) (*UsageReporterBinarySpec, error) {

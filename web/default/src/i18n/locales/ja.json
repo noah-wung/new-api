@@ -5362,6 +5362,17 @@
     "Install one collector for Claude Code CLI and the official VS Code extension.": "Claude Code CLI と公式 VS Code 拡張機能の使用量を、1 つのコレクターで収集します。",
     "Sign in as the selected user to generate a Claude Code installer command.": "選択したユーザーでログインして Claude Code のインストールコマンドを生成してください。",
     "This address is already metered by this gateway.": "このアドレスの使用量は、このゲートウェイですでに計測されています。",
-    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Claude Code に設定されているアドレスを指定してください。一致しない場合はインストールを停止します。API キーは含めないでください。"
+    "Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.": "Claude Code に設定されているアドレスを指定してください。一致しない場合はインストールを停止します。API キーは含めないでください。",
+    "Client Usage Collector": "クライアント使用量コレクター",
+    "Select your clients and run one command to install their collectors. Reports are sent every 5 minutes in the background.": "クライアントを選択し、コマンドを一度実行すると、選択したコレクターがインストールされます。使用量は5分ごとにバックグラウンドで送信されます。",
+    "Client usage reporting must be enabled by the administrator.": "管理者がクライアント使用量の報告を有効にする必要があります。",
+    "Sign in as the selected user to generate an installer command.": "選択したユーザーでログインして、インストールコマンドを生成してください。",
+    "Clients to collect": "収集対象のクライアント",
+    "Claude Code (CLI and VS Code)": "Claude Code（CLI と VS Code）",
+    "Not enabled": "未有効",
+    "Select at least one client.": "クライアントを1つ以上選択してください。",
+    "Install Selected Collectors": "選択したコレクターをインストール",
+    "Copy installer command": "インストールコマンドをコピー",
+    "Generate a command, then run it once on the device where your clients run.": "コマンドを生成し、クライアントを使用するデバイスで一度実行してください。"
   }
 }

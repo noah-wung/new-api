@@ -227,6 +227,9 @@ func GetExternalUsageReporterInstallScript(c *gin.Context) {
 	source := model.ExternalUsageSourceCodex
 	platform := ""
 	switch strings.TrimSpace(c.Param("script")) {
+	case "install-clients.sh", "install-clients.ps1":
+		GetExternalUsageClientInstallScript(c)
+		return
 	case "install.sh":
 		platform = service.ExternalUsageInstallerPlatformMacOS
 	case "install.ps1":
