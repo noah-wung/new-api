@@ -18,6 +18,13 @@ type ReportPayload struct {
 	Events        []UsageEvent `json:"events"`
 }
 
+// DeliveryError separates a healthy local collector with pending uploads from
+// a failure to parse, persist, acknowledge or checkpoint local usage.
+type DeliveryError struct{ Err error }
+
+func (e *DeliveryError) Error() string { return e.Err.Error() }
+func (e *DeliveryError) Unwrap() error { return e.Err }
+
 type RejectedEvent struct {
 	EventID string `json:"event_id"`
 	Reason  string `json:"reason"`

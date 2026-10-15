@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/QuantumNous/new-api/pkg/reporterupdate"
 	"github.com/QuantumNous/new-api/pkg/usagereporter"
 )
 
@@ -26,6 +27,23 @@ func main() {
 }
 
 func runReporter() (runErr error) {
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+	showVersion := flag.Bool("version", false, "Write reporter version information")
+	selfCheck := flag.Bool("self-check", false, "Read-only local configuration and queue compatibility check")
+	managed := flag.Bool("managed", false, "Enable private lifecycle control for a managed worker")
+	transactionID := flag.String("transaction", "", "Managed worker transaction identity")
+	updateCheck := flag.Bool("update-check", false, "Run due signed update check in the background")
+	updateNow := flag.Bool("update-now", false, "Check and apply a signed update immediately")
+	updateApply := flag.String("update-apply", "", "Apply an already prepared transaction")
+	updateRecover := flag.Bool("update-recover", false, "Recover an interrupted update")
+	autoUpdate := flag.String("auto-update", "", "Set automatic updates: on or off")
+	runtimePath := flag.String("runtime", "", "Managed runtime directory")
+	installAll := flag.Bool("install-clients", false, "Install selected collectors with signed update support")
+	codexInstallToken := flag.String("codex-install-token", "", "One-time Codex installation token")
+	claudeInstallToken := flag.String("claude-install-token", "", "One-time Claude installation token")
+	trustKeys := flag.String("trust-keys", "", "Trusted public keys JSON file")
+	catalogFile := flag.String("catalog", "", "Signed installation catalog file")
+	installAutomatic := flag.Bool("install-auto-update", true, "Enable automatic checks after installation")
 	logPath := flag.String("log-file", "", "Append output and errors to this file for background execution")
 	configPath := flag.String("config", "", "Reporter config file")
 	preservePolicyFrom := flag.String("preserve-gateway-policy-from", "", "Copy gateway policy from an existing config into --config and exit")
@@ -40,13 +58,15 @@ func runReporter() (runErr error) {
 	claudeUpstream := flag.String("claude-upstream", "", "Explicit effective upstream URL for the Claude telemetry profile")
 	installClaude := flag.Bool("install-claude", false, "Exchange a one-time Claude install token and configure telemetry")
 	installToken := flag.String("install-token", "", "One-time Claude installer token")
-	flag.Parse()
+	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
+		return err
+	}
 	if *logPath != "" {
 		path, err := usagereporter.ExpandPath(*logPath)
 		if err != nil {
 			return err
 		}
-		logFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		logFile, err := reporterupdate.OpenLog(path)
 		if err != nil {
 			return fmt.Errorf("open reporter log: %w", err)
 		}
@@ -59,6 +79,16 @@ func runReporter() (runErr error) {
 			os.Stdout, os.Stderr = stdout, stderr
 			_ = logFile.Close()
 		}()
+	}
+	if *showVersion {
+		fmt.Printf("%s %s %s %s\n", reporterupdate.Version, reporterupdate.Commit, reporterupdate.BuildReleaseID, reporterupdate.SchemaDescription())
+		return nil
+	}
+	if *installAll {
+		return installClients(*server, *codexInstallToken, *claudeInstallToken, *trustKeys, *catalogFile, *installAutomatic)
+	}
+	if *updateCheck || *updateNow || *updateApply != "" || *updateRecover || *autoUpdate != "" {
+		return runUpdate(*runtimePath, *updateApply, *updateCheck || *updateNow, *updateRecover, *updateNow, *autoUpdate)
 	}
 	if *installClaude {
 		if *configPath == "" || *server == "" || *installToken == "" {
@@ -119,6 +149,9 @@ func runReporter() (runErr error) {
 		return err
 	}
 
+	if *selfCheck {
+		return usagereporter.SelfCheck(cfg)
+	}
 	if strings.TrimSpace(*preservePolicyFrom) != "" {
 		if expandedConfigPath == "" {
 			return errors.New("--config is required when preserving gateway policy")
@@ -188,5 +221,21 @@ func runReporter() (runErr error) {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if *managed {
+		if expandedConfigPath == "" {
+			return errors.New("managed workers require a configuration file")
+		}
+		health := reporterupdate.Health{PID: os.Getpid(), ReleaseID: reporterupdate.BuildReleaseID, Source: cfg.Source, Transaction: *transactionID}
+		ready, closeControl, err := reporterupdate.ServeControl(ctx, expandedConfigPath, health, stop)
+		if err != nil {
+			return err
+		}
+		defer closeControl()
+		ctx = usagereporter.WithHealthObserver(ctx, func() {
+			ready()
+			health.Ready = true
+			_ = reporterupdate.Save(expandedConfigPath+".health.json", health)
+		})
+	}
 	return usagereporter.RunClient(ctx, cfg, *serve, os.Stdout, os.Stderr)
 }

@@ -13,6 +13,7 @@ export const clientInstallerSchema = z
       .refine((sources) => new Set(sources).size === sources.length),
     upstream_url: z.string().trim(),
     upstream_is_gateway: z.boolean(),
+    auto_update: z.boolean().optional(),
   })
   .superRefine((values, context) => {
     if (

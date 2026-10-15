@@ -25,9 +25,10 @@ type createExternalUsageInstallerCommandRequest struct {
 }
 
 type exchangeExternalUsageInstallerTokenRequest struct {
-	InstallToken      string `json:"install_token"`
-	DeviceName        string `json:"device_name"`
-	DeviceFingerprint string `json:"device_fingerprint"`
+	InstallToken        string `json:"install_token"`
+	DeviceName          string `json:"device_name"`
+	DeviceFingerprint   string `json:"device_fingerprint"`
+	ReportingCredential string `json:"reporting_credential"`
 }
 
 type deleteExternalUsageModelDataRequest struct {
@@ -198,9 +199,10 @@ func ExchangeExternalUsageSelfCodexInstallerToken(c *gin.Context) {
 	}
 
 	result, err := service.ConsumeCodexInstallToken(service.ConsumeCodexInstallTokenParams{
-		InstallToken:      req.InstallToken,
-		DeviceName:        req.DeviceName,
-		DeviceFingerprint: req.DeviceFingerprint,
+		InstallToken:        req.InstallToken,
+		DeviceName:          req.DeviceName,
+		DeviceFingerprint:   req.DeviceFingerprint,
+		ReportingCredential: req.ReportingCredential,
 	})
 	if err != nil {
 		if err == model.ErrExternalUsageDeviceLimitExceeded {
@@ -214,6 +216,7 @@ func ExchangeExternalUsageSelfCodexInstallerToken(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{
 		"server":               resolveExternalUsageInstallerServiceURL(c),
 		"source":               result.Source,
+		"accept_window_days":   external_usage_setting.GetSetting().AcceptWindowDays,
 		"device":               result.Device,
 		"reporting_credential": result.ReportingCredential,
 		"credential_preview":   service.BuildExternalUsageCredentialDisplay(result.ReportingCredential),

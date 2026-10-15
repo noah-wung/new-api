@@ -81,6 +81,8 @@ import {
   upsertExternalUsageModelMapping,
 } from './api'
 import { ClientInstallerCard } from './client-installer-card'
+import { ReporterReleaseCard } from './reporter-release-card'
+import { ReporterStatusCell } from './reporter-status-cell'
 import {
   canRequestExternalUsageInstallerCommand,
   initializeExternalUsageSelection,
@@ -1024,6 +1026,7 @@ export function ExternalUsage() {
           </div>
 
           <div className='flex flex-col gap-6'>
+            {isAdmin ? <ReporterReleaseCard /> : null}
             <ClientInstallerCard
               key={`${selectedUserId ?? 'self'}:${configuredClientSources.join(',')}`}
               canRequest={canRequestInstallerCommand}
@@ -1206,6 +1209,7 @@ export function ExternalUsage() {
                       <TableHead>{t('Device')}</TableHead>
                       <TableHead>{t('Sources')}</TableHead>
                       <TableHead>{t('Status')}</TableHead>
+                      <TableHead>{t('Collector Updates')}</TableHead>
                       <TableHead>{t('Last Report')}</TableHead>
                       <TableHead>{t('Created')}</TableHead>
                       <TableHead>{t('Action')}</TableHead>
@@ -1215,7 +1219,7 @@ export function ExternalUsage() {
                     {deviceRows.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={6}
+                          colSpan={7}
                           className='text-muted-foreground py-6 text-center'
                         >
                           {t('No reporting devices')}
@@ -1238,6 +1242,12 @@ export function ExternalUsage() {
                             >
                               {getExternalUsageStatusLabel(t, row.status)}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <ReporterStatusCell
+                              deviceId={row.id}
+                              canView={canIssueCredential}
+                            />
                           </TableCell>
                           <TableCell>
                             {formatTimestamp(row.last_reported_at)}

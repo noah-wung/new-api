@@ -5,6 +5,7 @@ go 1.25.1
 
 require (
 	github.com/Calcium-Ion/go-epay v0.0.4
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/abema/go-mp4 v1.4.1
 	github.com/andybalholm/brotli v1.1.1
 	github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0
@@ -22,6 +23,7 @@ require (
 	github.com/glebarez/sqlite v1.9.0
 	github.com/go-audio/aiff v1.1.0
 	github.com/go-audio/wav v1.1.0
+	github.com/go-ole/go-ole v1.2.6
 	github.com/go-playground/validator/v10 v10.20.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-webauthn/webauthn v0.14.0
@@ -107,7 +109,6 @@ require (
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
 	github.com/go-audio/audio v1.0.0 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
-	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect

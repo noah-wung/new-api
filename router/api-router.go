@@ -295,6 +295,9 @@ func SetApiRouter(router *gin.Engine) {
 
 		externalUsageRoute := apiRouter.Group("/external-usage")
 		{
+			externalUsageRoute.GET("/reporter/updates/stable", middleware.CriticalRateLimit(), controller.GetReporterUpdateCatalog)
+			externalUsageRoute.GET("/reporter/releases/:release_id/:target/:name", middleware.CriticalRateLimit(), controller.GetReporterReleaseAsset)
+			externalUsageRoute.POST("/reporter/status", middleware.CriticalRateLimit(), controller.ReportReporterStatus)
 			externalUsageRoute.POST("/report", middleware.CriticalRateLimit(), controller.ReportExternalUsage)
 			externalUsageRoute.POST("/self/codex-installer/exchange", controller.ExchangeExternalUsageSelfCodexInstallerToken)
 			externalUsageRoute.POST("/self/claude-code-installer/exchange", controller.ExchangeExternalUsageSelfClaudeInstallerToken)
@@ -304,6 +307,7 @@ func SetApiRouter(router *gin.Engine) {
 			externalUsageSelfRoute := externalUsageRoute.Group("/self")
 			externalUsageSelfRoute.Use(middleware.UserAuth())
 			{
+				externalUsageSelfRoute.GET("/reporter-status", controller.ListSelfReporterStatuses)
 				externalUsageSelfRoute.POST("/client-installer-command", controller.CreateExternalUsageSelfClientInstallerCommand)
 				externalUsageSelfRoute.POST("/codex-installer-command", controller.CreateExternalUsageSelfCodexInstallerCommand)
 				externalUsageSelfRoute.POST("/claude-code-installer-command", controller.CreateExternalUsageSelfClaudeInstallerCommand)
@@ -318,6 +322,9 @@ func SetApiRouter(router *gin.Engine) {
 			externalUsageAdminRoute := externalUsageRoute.Group("/admin")
 			externalUsageAdminRoute.Use(middleware.AdminAuth())
 			{
+				externalUsageAdminRoute.GET("/reporter-releases", controller.ListReporterReleases)
+				externalUsageAdminRoute.POST("/reporter-releases/activate", controller.ActivateReporterRelease)
+				externalUsageAdminRoute.POST("/reporter-releases/pause", controller.PauseReporterRelease)
 				externalUsageAdminRoute.GET("/cursor-import-batches", controller.ListExternalUsageCursorImportBatches)
 				externalUsageAdminRoute.GET("/report-batches", controller.ListExternalUsageReportBatches)
 				externalUsageAdminRoute.GET("/details", controller.ListExternalUsageDetails)

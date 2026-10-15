@@ -121,11 +121,15 @@ func RunClaudeReceiver(ctx context.Context, cfg Config, diagnostics io.Writer) e
 	if err != nil {
 		return err
 	}
+	if err = collector.CheckStorage(); err != nil {
+		return err
+	}
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
 	server := &http.Server{Handler: collector, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second}
+	observeHealthy(ctx)
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	workerDone := make(chan struct{})

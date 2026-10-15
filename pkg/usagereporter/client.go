@@ -11,13 +11,15 @@ import (
 // Client registrations contain lifecycle differences only. New adapters use
 // Reporter.Record (streaming) or Reporter.Report (polling), never HTTP uploads.
 type clientRegistration struct {
-	streaming bool
-	run       func(context.Context, Config, io.Writer, io.Writer) error
+	selfCheck         func(Config) error
+	legacyQueueSuffix string
+	streaming         bool
+	run               func(context.Context, Config, io.Writer, io.Writer) error
 }
 
 var clientRegistrations = map[string]clientRegistration{
-	SourceCodex: {run: runCodexCollector},
-	SourceClaudeCode: {streaming: true, run: func(ctx context.Context, cfg Config, _ io.Writer, diagnostics io.Writer) error {
+	SourceCodex: {run: runCodexCollector, selfCheck: checkCodexLocalData},
+	SourceClaudeCode: {streaming: true, selfCheck: checkClaudeLocalConfig, legacyQueueSuffix: ".claude-queue", run: func(ctx context.Context, cfg Config, _ io.Writer, diagnostics io.Writer) error {
 		return RunClaudeReceiver(ctx, cfg, diagnostics)
 	}},
 }

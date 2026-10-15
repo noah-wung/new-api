@@ -52,6 +52,7 @@ func BuildClientInstallerCommand(params BuildInstallScriptParams, tokens ClientI
 		return "", errors.New("select at least one client collector")
 	}
 	query := url.Values{}
+	if params.Managed { query.Set("auto_update",fmt.Sprint(params.AutoUpdate)) }
 	if tokens.Codex != "" {
 		query.Set("codex_token", tokens.Codex)
 	}
@@ -72,6 +73,7 @@ func BuildClientInstallerCommand(params BuildInstallScriptParams, tokens ClientI
 // BuildClientInstallScript downloads once, then runs the selected installers in
 // isolated scopes. Each keeps its existing config, state, task and route policy.
 func BuildClientInstallScript(params BuildInstallScriptParams, tokens ClientInstallTokens) (string, error) {
+	if params.Managed { return buildManagedClientInstallScript(params,tokens) }
 	if err := ValidateInstallerPlatform(params.Platform); err != nil {
 		return "", err
 	}

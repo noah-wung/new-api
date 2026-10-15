@@ -24,9 +24,10 @@ const (
 )
 
 type ConsumeCodexInstallTokenParams struct {
-	InstallToken      string
-	DeviceName        string
-	DeviceFingerprint string
+	InstallToken        string
+	DeviceName          string
+	DeviceFingerprint   string
+	ReportingCredential string
 }
 
 type ConsumeCodexInstallTokenResult struct {
@@ -37,6 +38,8 @@ type ConsumeCodexInstallTokenResult struct {
 }
 
 type BuildInstallScriptParams struct {
+	Managed          bool
+	AutoUpdate       bool
 	BundledBinary    bool
 	Source           string
 	Platform         string
@@ -86,14 +89,24 @@ func ConsumeCodexInstallToken(params ConsumeCodexInstallTokenParams) (*ConsumeCo
 			return err
 		}
 
-		device, reportingCredential, err := issueExternalUsageDeviceCredentialTx(tx, IssueExternalUsageDeviceParams{
-			UserID:            installToken.UserID,
-			DeviceName:        params.DeviceName,
-			DeviceFingerprint: params.DeviceFingerprint,
-			AllowedSources:    []string{model.ExternalUsageSourceCodex},
-		})
-		if err != nil {
-			return err
+		var device *model.ExternalUsageDevice
+		reportingCredential := strings.TrimSpace(params.ReportingCredential)
+		if reportingCredential != "" {
+			var previous model.ExternalUsageDevice
+			if err := tx.Where("credential_hash = ? AND user_id = ? AND device_fingerprint_hash = ? AND status = ?", sha256Hex(reportingCredential), installToken.UserID, sha256Hex(strings.TrimSpace(params.DeviceFingerprint)), model.ExternalUsageStatusActive).First(&previous).Error; err != nil || !isSourceAllowed(previous.GetAllowedSources(), model.ExternalUsageSourceCodex) {
+				return errors.New("existing installation identity must be resolved before reinstalling")
+			}
+			device = &previous
+		} else {
+			device, reportingCredential, err = issueExternalUsageDeviceCredentialTx(tx, IssueExternalUsageDeviceParams{
+				UserID:            installToken.UserID,
+				DeviceName:        params.DeviceName,
+				DeviceFingerprint: params.DeviceFingerprint,
+				AllowedSources:    []string{model.ExternalUsageSourceCodex},
+			})
+			if err != nil {
+				return err
+			}
 		}
 
 		installToken.Status = model.ExternalUsageStatusConsumed

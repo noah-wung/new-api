@@ -56,6 +56,10 @@ return err
 
 ## 升级兼容与验证
 
+签名发布、版本检查、系统任务切换和恢复统一由 `pkg/reporterupdate` 负责，见 [自动更新说明](usage-reporter-updates.md)。来源通过注册表声明只读的 `selfCheck`，用于校验自己的配置和状态；新来源默认沿用公共队列目录，`legacyQueueSuffix` 仅用于兼容已有队列布局。升级事务不重新兑换设备凭据，也不复制或清空采集队列。
+
+适配器在本地初始化和处理就绪后通过公共健康观察入口通知运行层；远端发送失败使用 `DeliveryError` 区别于解析、持久化和检查点错误。健康检查不要求设备必须产生一条用量，也不构造虚假事件。
+
 保留既有 `source` 值、上报 HTTP 结构、Codex 事件 ID、状态字段和 Claude 队列的目录及 JSON 格式。旧单来源安装和统一安装入口继续可用，Windows GUI 子系统及日志参数也不受适配器拆分影响。
 
 新 Codex 待报事件位于 `<state_path>.usage-queue/codex/<server-and-credential-digest>/`；Claude 继续读取 `<state_path>.claude-queue/<server-and-credential-digest>/`，无需清空或重建。服务器、来源和凭据隔离待报数据；变更账户/凭据不会自动转移另一身份的队列，轮换前应排空或保留旧配置处理待报数据。

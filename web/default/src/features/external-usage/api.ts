@@ -24,6 +24,8 @@ import type {
   ExternalUsageInstallerPlatform,
   ExternalUsageInstallerCommandData,
 } from './installer-command'
+import type { ReporterReleases } from './reporter-release-card'
+import type { ReporterStatus } from './reporter-status-cell'
 
 export async function getExternalUsageOverview(userId?: number) {
   const query = new URLSearchParams()
@@ -234,4 +236,31 @@ export async function createExternalUsageClientInstallerCommand(
     payload
   )
   return res.data
+}
+
+export async function getReporterStatuses(): Promise<ReporterStatus[]> {
+  const res = await api.get('/api/external-usage/self/reporter-status')
+  if (!res.data.success) throw new Error('Reporter status unavailable')
+  return res.data.data ?? []
+}
+
+export async function getReporterReleases(): Promise<ReporterReleases> {
+  const res = await api.get('/api/external-usage/admin/reporter-releases')
+  if (!res.data.success) throw new Error('Collector release operation failed')
+  return res.data.data
+}
+export async function activateReporterRelease(
+  release_id: string
+): Promise<void> {
+  const res = await api.post(
+    '/api/external-usage/admin/reporter-releases/activate',
+    { release_id }
+  )
+  if (!res.data.success) throw new Error('Collector release operation failed')
+}
+export async function pauseReporterRelease(): Promise<void> {
+  const res = await api.post(
+    '/api/external-usage/admin/reporter-releases/pause'
+  )
+  if (!res.data.success) throw new Error('Collector release operation failed')
 }

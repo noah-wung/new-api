@@ -51,9 +51,11 @@ export function ClientInstallerCard(props: {
       sources: availableSources,
       upstream_url: 'https://api.anthropic.com',
       upstream_is_gateway: false,
+      auto_update: true,
     },
   })
   const sources = useWatch({ control: form.control, name: 'sources' })
+  const autoUpdate = useWatch({ control: form.control, name: 'auto_update' })
   const includeClaude = sources.includes('claude_code')
   const platform = useWatch({ control: form.control, name: 'platform' })
   const isGateway = useWatch({
@@ -190,6 +192,30 @@ export function ClientInstallerCard(props: {
                 <FieldError>{t('Select at least one client.')}</FieldError>
               ) : null}
             </FieldSet>
+            <Field orientation='horizontal' data-disabled={!allowed}>
+              <Checkbox
+                id='collector-auto-update'
+                disabled={!allowed}
+                checked={autoUpdate ?? true}
+                onCheckedChange={(checked) => {
+                  invalidateCommand()
+                  form.setValue('auto_update', checked)
+                }}
+              />
+              <FieldLabel htmlFor='collector-auto-update'>
+                {t('Automatically check and silently update')}
+              </FieldLabel>
+            </Field>
+            <FieldDescription>
+              {t(
+                'Checks daily. Updates apply to all managed collectors on this device and preserve reporting credentials and queued usage.'
+              )}
+            </FieldDescription>
+            <FieldDescription>
+              {t(
+                'Signed releases and HTTPS are required. Existing devices must run the new installation command once to enable automatic updates.'
+              )}
+            </FieldDescription>
             {includeClaude ? (
               <>
                 <Field

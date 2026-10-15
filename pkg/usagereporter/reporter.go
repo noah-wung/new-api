@@ -315,7 +315,7 @@ func (c *Reporter) FlushContext(ctx context.Context) (stats ReportStats, flushEr
 		}
 		ack, err := uploadReportWithClient(ctx, &http.Client{Timeout: 30 * time.Second}, c.cfg.Server, c.cfg.Credential, batch)
 		if err != nil {
-			return stats, err
+			return stats, &DeliveryError{Err: err}
 		}
 		stats.Sent += len(batch.Events)
 		c.mu.Lock()

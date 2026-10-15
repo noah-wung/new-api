@@ -2,6 +2,7 @@ package usagereporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -53,13 +54,21 @@ func runCodexCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 	for _, event := range result.Events {
 		events = append(events, CollectedEvent{Event: event, ClientVersion: result.ClientVersion, Origin: result.routes[event.EventID].Origin, RouteID: result.routes[event.EventID].ID})
 	}
+	if err := reporter.CheckStorage(); err != nil {
+		return err
+	}
 	stats, err := reporter.Report(ctx, Collection{Events: events, Commit: func() error {
 		result.NextState.Server = strings.TrimSpace(cfg.Server)
 		return result.NextState.Save(cfg.StatePath)
 	}})
 	if err != nil {
+		var delivery *DeliveryError
+		if errors.As(err, &delivery) && ctx.Err() == nil {
+			observeHealthy(ctx)
+		}
 		return err
 	}
+	observeHealthy(ctx)
 	if stats.Sent == 0 {
 		fmt.Fprintln(output, "no new usage events")
 		return nil

@@ -29,6 +29,9 @@ func InstallClaudeReporter(server, token, path, settingsPath string) error {
 		if previous.Source != SourceClaudeCode {
 			return errors.New("refusing to overwrite a different source's reporter configuration")
 		}
+		if serverIdentity(previous.Server) != serverIdentity(server) {
+			return errors.New("existing installation belongs to a different gateway")
+		}
 		previous = previous.resolveRelativePaths(filepath.Dir(path))
 	}
 	hostname, err := os.Hostname()

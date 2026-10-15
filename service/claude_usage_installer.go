@@ -80,6 +80,9 @@ func ConsumeClaudeInstallToken(params ConsumeClaudeInstallTokenParams) (*Consume
 			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
+			if err != nil || !isSourceAllowed(previous.GetAllowedSources(), model.ExternalUsageSourceClaudeCode) {
+				return errors.New("existing installation identity must be resolved before reinstalling")
+			}
 			if err == nil && isSourceAllowed(previous.GetAllowedSources(), model.ExternalUsageSourceClaudeCode) {
 				result.Device = &previous
 				result.ReportingCredential = previousCredential

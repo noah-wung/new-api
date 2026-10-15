@@ -21,6 +21,7 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		Sources           []string `json:"sources"`
 		UpstreamURL       string   `json:"upstream_url"`
 		UpstreamIsGateway bool     `json:"upstream_is_gateway"`
+		AutoUpdate        *bool    `json:"auto_update"`
 	}
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		common.ApiErrorMsg(c, "invalid request body")
@@ -52,6 +53,16 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		}
 	}
 	var tokens service.ClientInstallTokens
+	if req.AutoUpdate != nil {
+		if !strings.HasPrefix(resolveExternalUsageInstallerServiceURL(c), "https://") {
+			common.ApiErrorMsg(c, "Managed installation requires HTTPS.")
+			return
+		}
+		if _, _, err := service.ActiveReporterCatalog(); err != nil {
+			common.ApiErrorMsg(c, "A signed collector release must be activated before installation.")
+			return
+		}
+	}
 	var expiresAt int64
 	if selected[model.ExternalUsageSourceClaudeCode] {
 		token, raw, err := service.IssueClaudeInstallToken(c.GetInt("id"), req.UpstreamURL, req.UpstreamIsGateway)
@@ -73,6 +84,7 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		}
 	}
 	command, err := service.BuildClientInstallerCommand(service.BuildInstallScriptParams{
+		Managed: req.AutoUpdate != nil, AutoUpdate: req.AutoUpdate != nil && *req.AutoUpdate,
 		Platform: req.Platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c),
 	}, tokens)
 	if err != nil {
@@ -96,6 +108,7 @@ func GetExternalUsageClientInstallScript(c *gin.Context) {
 		platform = service.ExternalUsageInstallerPlatformWindows
 	}
 	script, err := service.BuildClientInstallScript(service.BuildInstallScriptParams{
+		Managed: c.Query("auto_update") != "", AutoUpdate: c.Query("auto_update") == "true",
 		Platform: platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c),
 		AcceptWindowDays: external_usage_setting.GetSetting().AcceptWindowDays,
 	}, tokens)
