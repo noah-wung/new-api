@@ -15,12 +15,15 @@ const (
 )
 
 type Config struct {
-	Server           string `json:"server"`
-	Source           string `json:"source"`
-	Credential       string `json:"credential"`
-	CodexDir         string `json:"codex_dir"`
-	StatePath        string `json:"state_path"`
-	AcceptWindowDays int    `json:"accept_window_days,omitempty"`
+	Server                 string   `json:"server"`
+	Source                 string   `json:"source"`
+	Credential             string   `json:"credential"`
+	CodexDir               string   `json:"codex_dir"`
+	StatePath              string   `json:"state_path"`
+	AcceptWindowDays       int      `json:"accept_window_days,omitempty"`
+	GatewayURLs            []string `json:"gateway_urls,omitempty"`
+	ExcludedCodexProviders []string `json:"excluded_codex_providers,omitempty"`
+	CodexConfigPath        string   `json:"codex_config_path,omitempty"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -45,6 +48,15 @@ func SaveConfig(path string, cfg Config) error {
 	if err == nil {
 		if cfg.StatePath == "" {
 			cfg.StatePath = existing.StatePath
+		}
+		if cfg.GatewayURLs == nil {
+			cfg.GatewayURLs = existing.GatewayURLs
+		}
+		if cfg.ExcludedCodexProviders == nil {
+			cfg.ExcludedCodexProviders = existing.ExcludedCodexProviders
+		}
+		if cfg.CodexConfigPath == "" {
+			cfg.CodexConfigPath = existing.CodexConfigPath
 		}
 		if cfg.AcceptWindowDays == 0 {
 			cfg.AcceptWindowDays = existing.AcceptWindowDays
@@ -134,12 +146,16 @@ func (c Config) trimmed() Config {
 	c.Credential = strings.TrimSpace(c.Credential)
 	c.CodexDir = strings.TrimSpace(c.CodexDir)
 	c.StatePath = strings.TrimSpace(c.StatePath)
+	c.CodexConfigPath = strings.TrimSpace(c.CodexConfigPath)
 	return c
 }
 
 func (c Config) resolveRelativePaths(baseDir string) Config {
 	c.CodexDir = resolveRelativePath(baseDir, c.CodexDir)
 	c.StatePath = resolveRelativePath(baseDir, c.StatePath)
+	if c.CodexConfigPath != "" {
+		c.CodexConfigPath = resolveRelativePath(baseDir, c.CodexConfigPath)
+	}
 	return c
 }
 

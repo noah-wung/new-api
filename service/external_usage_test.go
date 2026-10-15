@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +9,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/external_usage_setting"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupExternalUsageTestTables(t *testing.T) {
@@ -37,34 +40,21 @@ func setupExternalUsageTestTables(t *testing.T) {
 }
 
 func TestParseCursorCSV(t *testing.T) {
+	setupExternalUsageTestTables(t)
+	occurredAt := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)
 	csvContent := strings.Join([]string{
 		"Date,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost",
-		"\"2026-06-25T11:13:12.544Z\",\"agent-1\",\"auto-1\",\"Included\",\"auto\",\"No\",\"0\",\"1983\",\"128736\",\"750\",\"131469\",\"Included\"",
+		fmt.Sprintf(`"%s","agent-1","auto-1","Included","auto","No","0","1983","128736","750","131469","Included"`, occurredAt),
 	}, "\n")
-
 	rows, err := parseCursorCSV([]byte(csvContent), 90)
-	if err != nil {
-		t.Fatalf("parseCursorCSV returned error: %v", err)
-	}
-	if len(rows) != 1 {
-		t.Fatalf("len(rows) = %d, want 1", len(rows))
-	}
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
 	row := rows[0]
-	if row.TotalToken != 131469 {
-		t.Fatalf("row.TotalToken = %d, want 131469", row.TotalToken)
-	}
-	if row.InputToken != 1983 {
-		t.Fatalf("row.InputToken = %d, want 1983", row.InputToken)
-	}
-	if row.CacheReadToken != 128736 {
-		t.Fatalf("row.CacheReadToken = %d, want 128736", row.CacheReadToken)
-	}
-	if row.NormalizedModelName != "cursor:auto" {
-		t.Fatalf("row.NormalizedModelName = %q, want %q", row.NormalizedModelName, "cursor:auto")
-	}
-	if row.EventIdentity == "" {
-		t.Fatal("row.EventIdentity should not be empty")
-	}
+	assert.Equal(t, 131469, row.TotalToken)
+	assert.Equal(t, 1983, row.InputToken)
+	assert.Equal(t, 128736, row.CacheReadToken)
+	assert.Equal(t, "cursor:auto", row.NormalizedModelName)
+	assert.NotEmpty(t, row.EventIdentity)
 }
 
 func TestValidateClientUsageEvent(t *testing.T) {
@@ -559,37 +549,27 @@ func TestReportExternalUsage_DuplicateEquivalentEventRepairsUnknownModel(t *test
 
 func TestImportCursorUsageCSV_TracksRejectedMalformedRows(t *testing.T) {
 	setupExternalUsageTestTables(t)
-
+	cfg, ok := config.GlobalConfig.Get("external_usage_setting").(*external_usage_setting.ExternalUsageSetting)
+	require.True(t, ok, "external usage settings must be registered")
+	previous := *cfg
+	cfg.AcceptWindowDays = 90
+	t.Cleanup(func() { *cfg = previous })
+	occurredAt := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)
 	csvContent := strings.Join([]string{
 		"Date,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost",
-		"\"2026-06-25T11:13:12.544Z\",\"agent-1\",\"auto-1\",\"Included\",\"auto\",\"No\",\"0\",\"1983\",\"128736\",\"750\",\"131469\",\"Included\"",
-		"\"2026-06-25T11:13:15.544Z\",\"agent-2\",\"auto-2\",\"Included\",\"auto\",\"No\",\"0\",\"1983\",\"128736\",\"750\",\"not-a-number\",\"Included\"",
+		fmt.Sprintf(`"%s","agent-1","auto-1","Included","auto","No","0","1983","128736","750","131469","Included"`, occurredAt),
+		fmt.Sprintf(`"%s","agent-2","auto-2","Included","auto","No","0","1983","128736","750","not-a-number","Included"`, occurredAt),
 	}, "\n")
-
 	result, err := ImportCursorUsageCSV(100, 1, "usage-events.csv", []byte(csvContent))
-	if err != nil {
-		t.Fatalf("ImportCursorUsageCSV returned error: %v", err)
-	}
-	if result.Batch.TotalRows != 2 {
-		t.Fatalf("result.Batch.TotalRows = %d, want 2", result.Batch.TotalRows)
-	}
-	if result.Batch.ImportedRows != 1 {
-		t.Fatalf("result.Batch.ImportedRows = %d, want 1", result.Batch.ImportedRows)
-	}
-	if result.Batch.RejectedRows != 1 {
-		t.Fatalf("result.Batch.RejectedRows = %d, want 1", result.Batch.RejectedRows)
-	}
-	if result.Batch.IgnoredRows != 0 {
-		t.Fatalf("result.Batch.IgnoredRows = %d, want 0", result.Batch.IgnoredRows)
-	}
-
+	require.NoError(t, err)
+	require.NotNil(t, result.Batch)
+	assert.Equal(t, 2, result.Batch.TotalRows)
+	assert.Equal(t, 1, result.Batch.ImportedRows)
+	assert.Equal(t, 1, result.Batch.RejectedRows)
+	assert.Zero(t, result.Batch.IgnoredRows)
 	var eventCount int64
-	if err := model.DB.Model(&model.ExternalUsageCursorEvent{}).Count(&eventCount).Error; err != nil {
-		t.Fatalf("Count(cursor events) error: %v", err)
-	}
-	if eventCount != 1 {
-		t.Fatalf("eventCount = %d, want 1", eventCount)
-	}
+	require.NoError(t, model.DB.Model(&model.ExternalUsageCursorEvent{}).Count(&eventCount).Error)
+	assert.Equal(t, int64(1), eventCount)
 }
 
 func TestNormalizeExternalModelName_UsesConfiguredMapping(t *testing.T) {

@@ -17,14 +17,16 @@ type TokenUsageTotals struct {
 	TotalTokens           int `json:"total_tokens"`
 }
 
-const reporterStateSessionContextVersion = 1
+const reporterStateSessionContextVersion = 2
 
 type FileState struct {
-	Offset     int64  `json:"offset"`
-	SessionID  string `json:"session_id"`
-	CLIVersion string `json:"cli_version"`
-	TurnID     string `json:"turn_id,omitempty"`
-	Model      string `json:"model,omitempty"`
+	Offset           int64  `json:"offset"`
+	SessionID        string `json:"session_id"`
+	CLIVersion       string `json:"cli_version"`
+	TurnID           string `json:"turn_id,omitempty"`
+	Model            string `json:"model,omitempty"`
+	ModelProvider    string `json:"model_provider,omitempty"`
+	DeferredProvider bool   `json:"deferred_provider,omitempty"`
 }
 
 type SessionContext struct {

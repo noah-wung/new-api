@@ -238,10 +238,16 @@ if [ -z "$SERVER" ]; then
   SERVER="$SERVICE_URL"
 fi
 
-cat > "$CONFIG_PATH" <<EOF
+NEXT_CONFIG_PATH="$TMP_DIR/config.json"
+cat > "$NEXT_CONFIG_PATH" <<EOF
 {"server":"$SERVER","source":"$SOURCE","credential":"$REPORTING_CREDENTIAL","codex_dir":"$CODEX_DIR","state_path":"$STATE_PATH","accept_window_days":$ACCEPT_WINDOW_DAYS}
 EOF
 
+if [ -f "$CONFIG_PATH" ]; then
+  "$BIN_PATH" --config "$NEXT_CONFIG_PATH" --preserve-gateway-policy-from "$CONFIG_PATH"
+fi
+cp "$NEXT_CONFIG_PATH" "$CONFIG_PATH"
+chmod 600 "$CONFIG_PATH"
 "$BIN_PATH" --config "$CONFIG_PATH"
 
 cat > "$PLIST_PATH" <<EOF
@@ -323,14 +329,23 @@ if (-not $Credential) {
   throw "installer exchange returned empty reporting credential"
 }
 
-$Config = @{
+$ConfigValues = @{
   server = $Server
   source = $Source
   credential = $Credential
   codex_dir = $CodexDir
   state_path = $StatePath
   accept_window_days = $AcceptWindowDays
-} | ConvertTo-Json -Compress
+}
+if (Test-Path $ConfigPath) {
+  $PreviousConfig = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
+  foreach ($PolicyName in @("gateway_urls", "excluded_codex_providers", "codex_config_path")) {
+    if ($PreviousConfig.PSObject.Properties.Name -contains $PolicyName) {
+      $ConfigValues[$PolicyName] = $PreviousConfig.$PolicyName
+    }
+  }
+}
+$Config = $ConfigValues | ConvertTo-Json -Compress
 
 [System.IO.File]::WriteAllText($ConfigPath, $Config, (New-Object System.Text.UTF8Encoding($false)))
 

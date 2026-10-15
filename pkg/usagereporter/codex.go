@@ -32,9 +32,11 @@ type UsageEvent struct {
 }
 
 type CollectResult struct {
-	ClientVersion string
-	Events        []UsageEvent
-	NextState     *State
+	ClientVersion          string
+	Events                 []UsageEvent
+	NextState              *State
+	ExcludedGatewayEvents  int
+	DeferredProviderEvents int
 }
 
 type codexLineEnvelope struct {
@@ -44,14 +46,16 @@ type codexLineEnvelope struct {
 }
 
 type codexSessionMetaPayload struct {
-	ID         string `json:"id"`
-	SessionID  string `json:"session_id"`
-	CLIVersion string `json:"cli_version"`
+	ID            string `json:"id"`
+	SessionID     string `json:"session_id"`
+	CLIVersion    string `json:"cli_version"`
+	ModelProvider string `json:"model_provider"`
 }
 
 type codexTurnContextPayload struct {
-	TurnID string `json:"turn_id"`
-	Model  string `json:"model"`
+	TurnID        string `json:"turn_id"`
+	Model         string `json:"model"`
+	ModelProvider string `json:"model_provider"`
 }
 
 type codexEventMsgPayload struct {
@@ -76,9 +80,13 @@ func CollectCodexUsage(root string, state *State) (*CollectResult, error) {
 	return CollectCodexUsageWithWindow(root, state, 0)
 }
 
-func CollectCodexUsageWithWindow(root string, state *State, acceptWindowDays int) (*CollectResult, error) {
+func CollectCodexUsageWithWindow(root string, state *State, acceptWindowDays int, policies ...CodexCollectionPolicy) (*CollectResult, error) {
 	if state == nil {
 		state = NewState()
+	}
+	filter, err := loadCodexGatewayFilter(root, state.Server, policies)
+	if err != nil {
+		return nil, err
 	}
 	nextState := state.Clone()
 	nextState.SessionContextVersion = reporterStateSessionContextVersion
@@ -94,7 +102,7 @@ func CollectCodexUsageWithWindow(root string, state *State, acceptWindowDays int
 	}
 	resetSessionTotals := make(map[string]struct{})
 	for _, path := range files {
-		fileEvents, fileVersion, fileState, err := collectCodexUsageFile(path, state, nextState, window, seenEventIDs, resetSessionTotals)
+		fileEvents, fileVersion, fileState, err := collectCodexUsageFile(path, state, nextState, window, seenEventIDs, resetSessionTotals, filter, result)
 		if err != nil {
 			return nil, err
 		}
@@ -128,13 +136,15 @@ func buildClientAcceptWindow(acceptWindowDays int) clientAcceptWindow {
 	}
 }
 
-func collectCodexUsageFile(path string, current *State, next *State, window clientAcceptWindow, seenEventIDs map[string]struct{}, resetSessionTotals map[string]struct{}) ([]UsageEvent, string, FileState, error) {
+func collectCodexUsageFile(path string, current *State, next *State, window clientAcceptWindow, seenEventIDs map[string]struct{}, resetSessionTotals map[string]struct{}, filter *codexGatewayFilter, result *CollectResult) ([]UsageEvent, string, FileState, error) {
 	fileState := current.Files[path]
 	sessionID := strings.TrimSpace(fileState.SessionID)
 	cliVersion := fileState.CLIVersion
+	modelProvider := fileState.ModelProvider
+	deferredProvider := false
 	turnID, model := restoreSessionContext(next, sessionID, fileState.TurnID, fileState.Model)
 	offset := fileState.Offset
-	if shouldForceCodexStateRescan(fileState, current) {
+	if shouldForceCodexStateRescan(fileState, current) || filter.enabled && fileState.Offset > 0 && modelProvider == "" {
 		offset = 0
 		if sessionID != "" {
 			sessionHash := sha256Hex(sessionID)
@@ -194,6 +204,7 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 					sessionID = newSessionID
 					turnID, model = restoreSessionContext(next, sessionID, "", "")
 				}
+				modelProvider = strings.TrimSpace(payload.ModelProvider)
 				if strings.TrimSpace(payload.CLIVersion) != "" {
 					cliVersion = strings.TrimSpace(payload.CLIVersion)
 				}
@@ -201,6 +212,9 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 				var payload codexTurnContextPayload
 				if unmarshalErr := common.Unmarshal(envelope.Payload, &payload); unmarshalErr != nil {
 					return nil, "", fileState, unmarshalErr
+				}
+				if payload.ModelProvider != "" {
+					modelProvider = strings.TrimSpace(payload.ModelProvider)
 				}
 				turnID = strings.TrimSpace(payload.TurnID)
 				model = strings.TrimSpace(payload.Model)
@@ -223,6 +237,21 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 					break
 				}
 				occurredAt := parseOccurredAt(envelope.Timestamp)
+				if window.Enabled && (occurredAt < window.CutoffUnix || occurredAt > window.FutureLimit) {
+					break
+				}
+				if filter.enabled {
+					excluded, known := filter.providers[modelProvider]
+					if !known {
+						result.DeferredProviderEvents++
+						deferredProvider = true
+						break
+					}
+					if excluded {
+						result.ExcludedGatewayEvents++
+						break
+					}
+				}
 				if strings.TrimSpace(model) == "" {
 					pendingEvents = append(pendingEvents, pendingCodexUsageEvent{
 						SessionHash:           sessionHash,
@@ -253,11 +282,16 @@ func collectCodexUsageFile(path string, current *State, next *State, window clie
 	fileState.CLIVersion = cliVersion
 	fileState.TurnID = turnID
 	fileState.Model = model
+	fileState.ModelProvider = modelProvider
+	fileState.DeferredProvider = deferredProvider
 	persistSessionContext(next, sessionID, turnID, model)
 	return events, cliVersion, fileState, nil
 }
 
 func shouldForceCodexStateRescan(fileState FileState, state *State) bool {
+	if fileState.DeferredProvider {
+		return true
+	}
 	if fileState.Offset <= 0 {
 		return false
 	}
