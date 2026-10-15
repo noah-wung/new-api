@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -209,4 +210,123 @@ func TestClaudeReceiverShutdown(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal(fmt.Sprintf("receiver failed to stop at %s", address))
 	}
+}
+
+// The in-memory transport keeps the schedule test independent of network I/O
+// so synctest can advance five-minute intervals without wall-clock sleeps.
+type claudeReportTransport struct {
+	roundTrip func(*http.Request) (*http.Response, error)
+}
+
+func (transport claudeReportTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport.roundTrip(request)
+}
+
+func TestClaudeUploadsEveryFiveMinutesAndRetriesWithoutRecounting(t *testing.T) {
+	cfg := claudeReceiverConfig(t, "https://token.example")
+	receiver, err := NewClaudeReceiver(cfg)
+	require.NoError(t, err)
+	response := claudeExport(t, receiver, cfg.ClaudeReceiverToken, claudeTestRecord(t, map[string]any{"request_id": "first"}))
+	require.Equal(t, http.StatusOK, response.Code)
+	var uploads []ReportPayload
+	previousTransport := http.DefaultTransport
+	http.DefaultTransport = claudeReportTransport{roundTrip: func(request *http.Request) (*http.Response, error) {
+		var payload ReportPayload
+		require.NoError(t, common.DecodeJson(request.Body, &payload))
+		uploads = append(uploads, payload)
+		status := http.StatusOK
+		if len(uploads) == 1 {
+			status = http.StatusServiceUnavailable
+		}
+		ids := make([]string, 0, len(payload.Events))
+		for _, event := range payload.Events {
+			ids = append(ids, event.EventID)
+		}
+		body, err := common.Marshal(map[string]any{"success": true, "data": ReportAcknowledgement{AcceptedEventIDs: ids}})
+		require.NoError(t, err)
+		return &http.Response{StatusCode: status, Body: io.NopCloser(bytes.NewReader(body)), Header: make(http.Header)}, nil
+	}}
+	t.Cleanup(func() { http.DefaultTransport = previousTransport })
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var diagnostics bytes.Buffer
+		go receiver.runUploads(ctx, &diagnostics)
+		synctest.Wait()
+		require.Len(t, uploads, 1, "pending events are attempted once at startup")
+		assert.Contains(t, diagnostics.String(), "queued events retained")
+		time.Sleep(5*time.Minute - time.Nanosecond)
+		synctest.Wait()
+		require.Len(t, uploads, 1, "failed uploads wait until the next reporting interval")
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		require.Len(t, uploads, 2)
+		assert.Equal(t, uploads[0].Events, uploads[1].Events, "retries retain event identities")
+		response := claudeExport(t, receiver, cfg.ClaudeReceiverToken, claudeTestRecord(t, map[string]any{"request_id": "second"}))
+		require.Equal(t, http.StatusOK, response.Code)
+		time.Sleep(5*time.Minute - time.Nanosecond)
+		synctest.Wait()
+		require.Len(t, uploads, 2, "new events stay local until the next five-minute tick")
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		require.Len(t, uploads, 3)
+		require.Len(t, uploads[2].Events, 1)
+		assert.NotEqual(t, uploads[0].Events[0].EventID, uploads[2].Events[0].EventID)
+		time.Sleep(5 * time.Minute)
+		synctest.Wait()
+		assert.Len(t, uploads, 3, "empty queues must not send HTTP requests")
+		cancel()
+		synctest.Wait()
+	})
+}
+
+func TestClaudeFlushDrainsSnapshotInBatchesAndPreservesUnacknowledgedEvents(t *testing.T) {
+	var uploads []ReportPayload
+	var addedDuringUpload bool
+	var receiver *ClaudeReceiver
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		var payload ReportPayload
+		require.NoError(t, common.DecodeJson(request.Body, &payload))
+		uploads = append(uploads, payload)
+		assert.LessOrEqual(t, len(payload.Events), 100)
+		ids := make([]string, 0, len(payload.Events))
+		for _, event := range payload.Events {
+			ids = append(ids, event.EventID)
+		}
+		if len(uploads) == 1 {
+			// Incomplete ACKs are retried next cycle, not repeatedly in this one.
+			ids = ids[1:]
+			response := claudeExport(t, receiver, receiver.cfg.ClaudeReceiverToken, claudeTestRecord(t, map[string]any{"request_id": "arrived-during-upload"}))
+			require.Equal(t, http.StatusOK, response.Code)
+			addedDuringUpload = true
+		}
+		body, err := common.Marshal(map[string]any{"success": true, "data": ReportAcknowledgement{AcceptedEventIDs: ids}})
+		require.NoError(t, err)
+		_, err = w.Write(body)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+	cfg := claudeReceiverConfig(t, server.URL)
+	var err error
+	receiver, err = NewClaudeReceiver(cfg)
+	require.NoError(t, err)
+	for i := 0; i < 205; i++ {
+		response := claudeExport(t, receiver, cfg.ClaudeReceiverToken, claudeTestRecord(t, map[string]any{"request_id": fmt.Sprintf("request-%d", i)}))
+		require.Equal(t, http.StatusOK, response.Code)
+	}
+	require.NoError(t, receiver.Flush())
+	require.Len(t, uploads, 3, "one reporting cycle handles more than 100 accumulated requests")
+	assert.Len(t, uploads[0].Events, 100)
+	assert.Len(t, uploads[1].Events, 100)
+	assert.Len(t, uploads[2].Events, 5)
+	assert.True(t, addedDuringUpload)
+	files, err := os.ReadDir(receiver.queueDir)
+	require.NoError(t, err)
+	assert.Len(t, files, 2, "retain the unacknowledged event and the newly arrived event")
+	require.NoError(t, receiver.Flush())
+	require.Len(t, uploads, 4)
+	assert.Len(t, uploads[3].Events, 2)
+	files, err = os.ReadDir(receiver.queueDir)
+	require.NoError(t, err)
+	assert.Empty(t, files)
 }

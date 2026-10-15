@@ -5,13 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
 const (
-	DefaultCodexDir  = "~/.codex/sessions"
-	DefaultStatePath = "~/.new-api-usage-reporter/state.json"
+	DefaultReportInterval = 5 * time.Minute
+	DefaultCodexDir       = "~/.codex/sessions"
+	DefaultStatePath      = "~/.new-api-usage-reporter/state.json"
 )
 
 type Config struct {

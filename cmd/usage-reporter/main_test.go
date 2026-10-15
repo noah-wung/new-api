@@ -192,3 +192,30 @@ func TestReporterCommandRetriesFailedUploadWithoutRecountingGatewayUsage(t *test
 	assert.Contains(t, finalOutput, "no new usage events")
 	assert.Equal(t, int32(2), requests.Load(), "acknowledged direct usage and excluded gateway usage must not be uploaded again")
 }
+
+func TestReporterCommandWritesBackgroundDiagnosticsToLog(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "测试 logs")
+	require.NoError(t, os.MkdirAll(root, 0o700))
+	sessions := filepath.Join(root, "sessions")
+	require.NoError(t, os.MkdirAll(sessions, 0o700))
+	logPath := filepath.Join(root, "scheduled-task.log")
+	require.NoError(t, os.WriteFile(logPath, []byte("previous run\n"), 0o600))
+	output := runReporterCommand(t, "--log-file", logPath, "--server", "https://token.example", "--credential", "fixture-credential", "--codex-dir", sessions, "--state", filepath.Join(root, "state.json"))
+	assert.Empty(t, output, "successful background runs should write only to the log")
+	content, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "previous run\n")
+	assert.Contains(t, string(content), "no new usage events")
+
+	args := []string{"-test.run=^TestUsageReporterSubprocess$", "--", "--log-file", logPath, "--config", filepath.Join(root, "missing-config.json")}
+	cmd := exec.Command(os.Args[0], args...)
+	cmd.Env = append(os.Environ(), "NEW_API_USAGE_REPORTER_TEST_PROCESS=1")
+	_, err = cmd.CombinedOutput()
+	require.Error(t, err, "background errors must retain a nonzero exit code for Task Scheduler")
+	content, err = os.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "missing-config.json", "errors must remain diagnosable without a console")
+	assert.Contains(t, string(content), "previous run\n")
+	assert.Contains(t, string(content), "no new usage events")
+	assert.NotContains(t, string(content), "fixture-credential")
+}

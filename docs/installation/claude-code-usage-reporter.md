@@ -2,7 +2,7 @@
 
 `usage-reporter` 支持接收官方 Claude Code CLI 和官方 VS Code 扩展的 OpenTelemetry 请求事件，使用 `claude_code` 来源写入 new-api 外部用量统计。它与 Codex 共用二进制和上报 API，使用独立配置、进程及本机接收凭据。外部上报不扣 Quota，也不写入网关消费日志。
 
-这是实时采集：只转换 `claude_code.api_request`，不扫描历史 transcript、不读取 Claude 登录凭据，也不将 OTel metrics 或父会话累计值再次计入。子 agent 发出的独立 API 请求按相同规则采集。CLI 和扩展必须支持官方文档列出的请求事件与 `http/json` exporter。
+本机持续接收事件，每 5 分钟向网关批量上报，与 Codex 采集器保持一致。只转换 `claude_code.api_request`，不扫描历史 transcript、不读取 Claude 登录凭据，也不将 OTel metrics 或父会话累计值再次计入。子 agent 发出的独立 API 请求按相同规则采集。CLI 和扩展必须支持官方文档列出的请求事件与 `http/json` exporter。
 
 ## 服务端准备
 
@@ -46,6 +46,14 @@
 ```sh
 go build -o usage-reporter ./cmd/usage-reporter
 ```
+
+Windows 后台版本必须使用 GUI 子系统构建，避免系统创建控制台窗口：
+
+```powershell
+go build -ldflags "-s -w -H=windowsgui" -o usage-reporter.exe ./cmd/usage-reporter
+```
+
+Windows 手动运行时建议同时传入 `--log-file` 的绝对路径，以便没有控制台时仍能查看结果和错误。
 
 已部署的服务还提供以下二进制下载；查询参数让只启用 Claude 的站点也能下载：
 
@@ -157,8 +165,9 @@ Windows 可用当前用户的 PowerShell 注册登录任务。使用绝对配置
 $Root = Join-Path $env:USERPROFILE '.new-api-usage-reporter'
 $Binary = Join-Path $Root 'usage-reporter.exe'
 $Config = Join-Path $Root 'claude-config.json'
+$Log = Join-Path $Root 'claude-scheduled-task.log'
 $User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-$Action = New-ScheduledTaskAction -Execute $Binary -Argument ('--config "{0}" --serve' -f $Config)
+$Action = New-ScheduledTaskAction -Execute $Binary -Argument ('--config "{0}" --serve --log-file "{1}"' -f $Config, $Log)
 $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $User
 $Principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive -RunLevel Limited
 $Settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
@@ -166,7 +175,11 @@ Register-ScheduledTask -TaskName 'new-api-claude-usage-reporter' -Action $Action
 Start-ScheduledTask -TaskName 'new-api-claude-usage-reporter'
 ```
 
-这与现有 Codex 的五分钟定时扫描不同：Claude exporter 需要本机接收器持续运行。停止时，Linux 禁用该 user unit；macOS 使用 `launchctl bootout`；Windows 停止并注销对应任务。然后移除本功能添加的 Claude `env` 项；备份仅保存首次配置前的状态，恢复时需保留之后新增的其他设置。
+两种采集器均在启动时尝试上报已有数据，随后每 5 分钟上报；没有新增/待上报事件时不发送用量请求。Codex 由系统定时启动扫描，Claude exporter 需要本机接收器持续运行，接收的事件先写入本地队列，再按相同周期上传。
+
+Windows 自动安装任务直接运行 GUI 子系统二进制，不启动 PowerShell 包装进程，也不在每次上报时显示控制台窗口；运行信息和错误追加到各自安装目录的 `scheduled-task.log`，Claude 安装配置结果保存在其 `install.log`。首次主动执行安装命令的终端仍显示安装结果。旧版本需重新执行个人后台生成的安装命令，才能替换二进制和任务配置。
+
+停止时，Linux 禁用该 user unit；macOS 使用 `launchctl bootout`；Windows 停止并注销对应任务。然后移除本功能添加的 Claude `env` 项；备份仅保存首次配置前的状态，恢复时需保留之后新增的其他设置。
 
 ## 计数、重试和本地数据
 
@@ -174,7 +187,7 @@ Start-ScheduledTask -TaskName 'new-api-claude-usage-reporter'
 - 有 `request_id` 时按来源、上游 origin 和请求 ID 生成稳定事件 ID；没有时优先使用 `client_request_id`。两者均无时，以 session、原始纳秒时间、sequence、可用进程实例、模型和计数的摘要退化去重。退化模式不能保证合并被其他系统改写时间或字段的副本，不能只靠 session + sequence 去重。
 - 服务端对 Claude 仅按事件 ID 去重，保留同一秒内数值相同的独立请求；跨入口或子 agent 不再使用父会话累计量相加。
 - 接收端在确认前将白名单记录写入磁盘，文件名及 session 使用摘要；不保存 prompts、responses、邮件、账户 ID、项目路径、任意属性或原始请求 ID。标准化上游 origin 仅在本地保存，以便上报前再次执行网关排除，不传给 new-api。
-- 每 10 秒最多上报 100 条。失败、ACK 丢失或 ACK 未列出的事件保留原 ID；明确 accepted/duplicate 后才删除，明确 rejected 后保存为 `.json.rejected` 待检查。服务端拒绝原因不会原样落盘。
+- 每 5 分钟处理本周期开始时的待上报事件，每个 HTTP 批次最多 100 条；积压超过 100 条时在同一周期继续分批处理。处理中新增的事件和未被 ACK 的事件留到下一周期；网络失败立即结束本周期，下一周期重试。失败、ACK 丢失或 ACK 未列出的事件保留原 ID；明确 accepted/duplicate 后才删除，明确 rejected 后保存为 `.json.rejected` 待检查。服务端拒绝原因不会原样落盘。
 - 队列在 `<state_path>.claude-queue/<server-and-credential-digest>/`，最多 10,000 个文件，达到上限返回可重试错误。永久拒绝文件也占上限，处理后需自行清理。服务端/凭据更换会隔离旧队列，避免把另一身份的用量上报给新账户；轮换前应先排空旧队列，保留旧配置用于排障。
 - 持久化从本机成功接收开始。接收器未运行、Claude exporter 自身缓冲耗尽或进程在导出前退出的用量可能丢失；本实现不承诺通过历史 JSONL 自动补齐。
 
@@ -186,6 +199,6 @@ Start-ScheduledTask -TaskName 'new-api-claude-usage-reporter'
 
 另已使用本机 Claude Code CLI **2.1.236**、隔离 HOME/配置和本地模拟 Anthropic API，验证真实 CLI 的 OTLP 导出经本机接收器进入 report API：1 个真实 CLI 请求形成 1 个用量事件，输入 `100 + 200 + 300 = 600`、缓存读 `200`、输出 `40`、总量 `640`。没有调用真实模型服务，也没有读取现有 Claude 登录信息。
 
-其余自动回归使用脱敏合成 OTLP 事件。目标 VS Code 扩展仍需在实际运行环境验收，核对 `api_request` 四类 token、子 agent 和网关/直连两路；Windows 登录任务也需在 Windows 实机验证。开发过程不修改现有 Claude 用户设置、不使用真实模型凭据、不向生产服务上报测试用量。
+其余自动回归使用脱敏合成 OTLP 事件。目标 VS Code 扩展仍需在实际运行环境验收，核对 `api_request` 四类 token、子 agent 和网关/直连两路；Windows 二进制已按 GUI 子系统构建，但登录任务、周期执行和实际无闪窗体验仍需在 Windows 实机验证。开发过程不修改现有 Claude 用户设置、不使用真实模型凭据、不向生产服务上报测试用量。
 
 官方契约参考：[Monitoring usage](https://code.claude.com/docs/en/monitoring-usage)、[VS Code configuration](https://code.claude.com/docs/en/vs-code#configure-settings)。

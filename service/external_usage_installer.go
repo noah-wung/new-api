@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/usagereporter"
 	"gorm.io/gorm"
 )
 
@@ -277,7 +278,7 @@ cat > "$PLIST_PATH" <<EOF
     <string>$CONFIG_PATH</string>
   </array>
   <key>StartInterval</key>
-  <integer>300</integer>
+  <integer>%d</integer>
   <key>StandardOutPath</key>
   <string>$INSTALL_ROOT/launchagent.log</string>
   <key>StandardErrorPath</key>
@@ -290,19 +291,19 @@ launchctl unload "$PLIST_PATH" >/dev/null 2>&1 || true
 launchctl load -w "$PLIST_PATH"
 
 echo "Installed Codex usage reporting to $INSTALL_ROOT"
-`, serviceURL, installToken, params.AcceptWindowDays)
+`, serviceURL, installToken, params.AcceptWindowDays, int(usagereporter.DefaultReportInterval/time.Second))
 }
 
 func buildWindowsInstallScript(params BuildInstallScriptParams) string {
 	serviceURL := strings.TrimRight(strings.TrimSpace(params.ServiceURL), "/")
 	installToken := strings.TrimSpace(params.InstallToken)
-	return fmt.Sprintf(`$ServiceUrl = %q
+	return fmt.Sprintf(`$ErrorActionPreference = 'Stop'
+$ServiceUrl = %q
 $InstallToken = %q
 $AcceptWindowDays = %d
 $InstallRoot = Join-Path $env:USERPROFILE ".new-api-usage-reporter"
 $BinaryPath = Join-Path $InstallRoot "usage-reporter.exe"
 $ConfigPath = Join-Path $InstallRoot "config.json"
-$RunnerPath = Join-Path $InstallRoot "run.ps1"
 $LogPath = Join-Path $InstallRoot "scheduled-task.log"
 $StatePath = Join-Path $InstallRoot "state.json"
 $CodexDir = Join-Path $env:USERPROFILE ".codex\sessions"
@@ -362,19 +363,20 @@ $Config = $ConfigValues | ConvertTo-Json -Compress
 
 [System.IO.File]::WriteAllText($ConfigPath, $Config, (New-Object System.Text.UTF8Encoding($false)))
 
-$RunnerScript = @"
-& "$BinaryPath" --config "$ConfigPath" *>> "$LogPath"
-"@
-[System.IO.File]::WriteAllText($RunnerPath, $RunnerScript, (New-Object System.Text.UTF8Encoding($false)))
+# The downloaded Windows binary uses the GUI subsystem and writes its own log.
+$Arguments = ('--config "{0}" --log-file "{1}"' -f $ConfigPath, $LogPath)
+$InitialRun = Start-Process -FilePath $BinaryPath -ArgumentList $Arguments -WindowStyle Hidden -Wait -PassThru
+if ($InitialRun.ExitCode -ne 0) { Write-Warning "Initial Codex report failed; the scheduled task will retry. See $LogPath" }
 
-& $BinaryPath --config $ConfigPath
-
-schtasks /Delete /TN $TaskName /F 2>$null | Out-Null
-$TaskCommand = ('powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $RunnerPath)
-schtasks /Create /F /SC MINUTE /MO 5 /TN $TaskName /TR $TaskCommand | Out-Null
+$User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$Action = New-ScheduledTaskAction -Execute $BinaryPath -Argument $Arguments
+$Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(%d) -RepetitionInterval (New-TimeSpan -Minutes %d)
+$Principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive -RunLevel Limited
+$Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
 
 Write-Host "Installed Codex usage reporting to $InstallRoot"
-`, serviceURL, installToken, params.AcceptWindowDays)
+`, serviceURL, installToken, params.AcceptWindowDays, int(usagereporter.DefaultReportInterval/time.Minute), int(usagereporter.DefaultReportInterval/time.Minute))
 }
 
 func usageReporterBinarySpecForTarget(target string) (*UsageReporterBinarySpec, error) {
@@ -435,7 +437,12 @@ func buildUsageReporterBinary(spec *UsageReporterBinarySpec) (string, error) {
 		return "", err
 	}
 	outputPath := filepath.Join(outputDir, spec.DownloadName)
-	cmd := exec.Command(goBinary, "build", "-o", outputPath, "./cmd/usage-reporter")
+	args := []string{"build", "-o", outputPath}
+	if spec.GOOS == "windows" {
+		args = append(args, "-ldflags", "-s -w -H=windowsgui")
+	}
+	args = append(args, "./cmd/usage-reporter")
+	cmd := exec.Command(goBinary, args...)
 	cmd.Dir = projectRoot
 	cmd.Env = append(os.Environ(),
 		"CGO_ENABLED=0",

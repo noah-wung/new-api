@@ -93,12 +93,15 @@ $InstallRoot = Join-Path $env:USERPROFILE '.new-api-usage-reporter\claude'
 $BinaryPath = Join-Path $InstallRoot 'usage-reporter.exe'
 $ConfigPath = Join-Path $InstallRoot 'config.json'
 $TaskName = 'new-api-claude-usage-reporter'
+$LogPath = Join-Path $InstallRoot 'scheduled-task.log'
+$InstallLogPath = Join-Path $InstallRoot 'install.log'
 $TempBinary = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString() + '.exe')
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 try {
   Invoke-WebRequest -Uri "$ServiceUrl/api/external-usage/reporter/binary/windows-amd64/usage-reporter.exe?source=claude_code" -OutFile $TempBinary -UseBasicParsing
-  & $TempBinary --install-claude --server $ServiceUrl --install-token $InstallToken --config $ConfigPath
-  if ($LASTEXITCODE -ne 0) { throw 'Claude configuration failed; existing scheduled task was not replaced' }
+  $InstallArguments = ('--install-claude --server "{0}" --install-token "{1}" --config "{2}" --log-file "{3}"' -f $ServiceUrl, $InstallToken, $ConfigPath, $InstallLogPath)
+  $InstallRun = Start-Process -FilePath $TempBinary -ArgumentList $InstallArguments -WindowStyle Hidden -Wait -PassThru
+  if ($InstallRun.ExitCode -ne 0) { throw "Claude configuration failed; existing scheduled task was not replaced. See $InstallLogPath" }
   $PreviousTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
   if ($PreviousTask) {
     Stop-ScheduledTask -TaskName $TaskName
@@ -110,7 +113,7 @@ try {
   }
   Move-Item -LiteralPath $TempBinary -Destination $BinaryPath -Force
   $User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-  $Action = New-ScheduledTaskAction -Execute $BinaryPath -Argument ('--config "{0}" --serve' -f $ConfigPath)
+  $Action = New-ScheduledTaskAction -Execute $BinaryPath -Argument ('--config "{0}" --serve --log-file "{1}"' -f $ConfigPath, $LogPath)
   $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $User
   $Principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive -RunLevel Limited
   $Settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)

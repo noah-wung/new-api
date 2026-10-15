@@ -23,7 +23,7 @@ RUN mkdir -p web/default/dist web/classic/dist && \
 RUN mkdir -p /build/reporter-binaries/darwin-arm64 /build/reporter-binaries/darwin-amd64 /build/reporter-binaries/windows-amd64 && \
     CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w" -o /build/reporter-binaries/darwin-arm64/usage-reporter ./cmd/usage-reporter && \
     CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o /build/reporter-binaries/darwin-amd64/usage-reporter ./cmd/usage-reporter && \
-    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o /build/reporter-binaries/windows-amd64/usage-reporter.exe ./cmd/usage-reporter
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -H=windowsgui" -o /build/reporter-binaries/windows-amd64/usage-reporter.exe ./cmd/usage-reporter
 
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 

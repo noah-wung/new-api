@@ -25,7 +25,8 @@ func main() {
 	}
 }
 
-func runReporter() error {
+func runReporter() (runErr error) {
+	logPath := flag.String("log-file", "", "Append output and errors to this file for background execution")
 	configPath := flag.String("config", "", "Reporter config file")
 	preservePolicyFrom := flag.String("preserve-gateway-policy-from", "", "Copy gateway policy from an existing config into --config and exit")
 	server := flag.String("server", "", "External usage API server URL")
@@ -40,6 +41,25 @@ func runReporter() error {
 	installClaude := flag.Bool("install-claude", false, "Exchange a one-time Claude install token and configure telemetry")
 	installToken := flag.String("install-token", "", "One-time Claude installer token")
 	flag.Parse()
+	if *logPath != "" {
+		path, err := expandPath(*logPath)
+		if err != nil {
+			return err
+		}
+		logFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		if err != nil {
+			return fmt.Errorf("open reporter log: %w", err)
+		}
+		stdout, stderr := os.Stdout, os.Stderr
+		os.Stdout, os.Stderr = logFile, logFile
+		defer func() {
+			if runErr != nil {
+				_, _ = fmt.Fprintln(logFile, runErr)
+			}
+			os.Stdout, os.Stderr = stdout, stderr
+			_ = logFile.Close()
+		}()
+	}
 	if *installClaude {
 		if *configPath == "" || *server == "" || *installToken == "" {
 			return errors.New("--install-claude requires --server, --install-token and --config")

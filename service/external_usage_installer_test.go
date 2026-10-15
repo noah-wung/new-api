@@ -1,10 +1,15 @@
 package service
 
 import (
+	"debug/pe"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/QuantumNous/new-api/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildInstallScript_ReinstallPathDoesNotDeleteState(t *testing.T) {
@@ -113,7 +118,7 @@ func TestBuildInstallScript_WindowsIncludesRealInstallFlow(t *testing.T) {
 		"Invoke-RestMethod",
 		"usage-reporter.exe",
 		"--config",
-		"schtasks",
+		"Register-ScheduledTask",
 	}
 	for _, check := range checks {
 		if !strings.Contains(script, check) {
@@ -129,25 +134,38 @@ func TestBuildInstallScript_WindowsIncludesRealInstallFlow(t *testing.T) {
 }
 
 func TestBuildInstallScript_WindowsSchedulesSilentBackgroundRunner(t *testing.T) {
-	script, err := BuildInstallScript(BuildInstallScriptParams{
-		Platform:         ExternalUsageInstallerPlatformWindows,
-		ServiceURL:       "https://example.com",
-		InstallToken:     "install-token-7",
-		AcceptWindowDays: 90,
-	})
-	if err != nil {
-		t.Fatalf("BuildInstallScript returned error: %v", err)
+	for _, source := range []string{model.ExternalUsageSourceCodex, model.ExternalUsageSourceClaudeCode} {
+		t.Run(source, func(t *testing.T) {
+			script, err := BuildInstallScript(BuildInstallScriptParams{
+				Source: source, Platform: ExternalUsageInstallerPlatformWindows,
+				ServiceURL: "https://example.com", InstallToken: "install-token-7", AcceptWindowDays: 90,
+			})
+			require.NoError(t, err)
+			assert.Contains(t, script, "New-ScheduledTaskAction -Execute $BinaryPath -Argument")
+			assert.Contains(t, script, `--log-file "{1}"`)
+			assert.Contains(t, script, "-LogonType Interactive -RunLevel Limited")
+			assert.Contains(t, script, "-MultipleInstances IgnoreNew")
+			assert.Contains(t, script, "-WindowStyle Hidden -Wait -PassThru", "installer must wait for the GUI binary and check its exit code")
+			assert.NotContains(t, script, "powershell.exe", "recurring tasks must run the GUI binary without a console wrapper")
+			assert.NotContains(t, script, "run.ps1")
+			if source == model.ExternalUsageSourceCodex {
+				assert.Contains(t, script, "(Get-Date).AddMinutes(5) -RepetitionInterval (New-TimeSpan -Minutes 5)")
+				assert.Contains(t, script, "$InitialRun.ExitCode -ne 0")
+			} else {
+				assert.Contains(t, script, "--serve --log-file")
+				assert.Contains(t, script, "$InstallRun.ExitCode -ne 0")
+				assert.Contains(t, script, "New-ScheduledTaskTrigger -AtLogOn")
+			}
+		})
 	}
+}
 
-	if !strings.Contains(script, "-WindowStyle Hidden") {
-		t.Fatal("expected Windows install script to schedule reporter with a hidden PowerShell window")
-	}
-	if !strings.Contains(script, `Join-Path $InstallRoot "run.ps1"`) {
-		t.Fatal("expected Windows install script to write a dedicated silent runner script")
-	}
-	if !strings.Contains(script, `*>> "$LogPath"`) {
-		t.Fatal("expected Windows install script to redirect scheduled reporter output to a log file")
-	}
+func TestBuildInstallScript_CodexMacOSReportsEveryFiveMinutes(t *testing.T) {
+	script, err := BuildInstallScript(BuildInstallScriptParams{
+		Platform: ExternalUsageInstallerPlatformMacOS, ServiceURL: "https://example.com", InstallToken: "fixture",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, script, "<key>StartInterval</key>\n  <integer>300</integer>")
 }
 
 func TestResolveUsageReporterBinaryPath_UsesConfiguredAssetDir(t *testing.T) {
@@ -207,4 +225,20 @@ func TestBuildInstallerCommand_RendersPlatformSpecificInvoker(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildUsageReporterWindowsBinaryUsesGUISubsystem(t *testing.T) {
+	// Verify the actual downloadable fallback binary, not only linker arguments.
+	t.Setenv("TMPDIR", t.TempDir())
+	t.Setenv("TMP", os.Getenv("TMPDIR"))
+	spec, err := usageReporterBinarySpecForTarget("windows-amd64")
+	require.NoError(t, err)
+	path, err := buildUsageReporterBinary(spec)
+	require.NoError(t, err)
+	binary, err := pe.Open(path)
+	require.NoError(t, err)
+	defer binary.Close()
+	header, ok := binary.OptionalHeader.(*pe.OptionalHeader64)
+	require.True(t, ok, "Windows amd64 download must be a PE32+ executable")
+	assert.Equal(t, uint16(pe.IMAGE_SUBSYSTEM_WINDOWS_GUI), header.Subsystem, "Task Scheduler must not create a console window for the reporter")
 }

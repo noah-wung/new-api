@@ -152,8 +152,8 @@ func (c *ClaudeReceiver) enqueue(event claudeQueuedEvent) error {
 	return writePrivateFile(path, content)
 }
 
-// Flush uploads one bounded batch. Only explicit server acknowledgements allow
-// removal; network errors and incomplete ACKs retain the same event identities.
+// Flush uploads the current queue in bounded batches. New events and incomplete
+// ACKs wait for the next interval; only explicit acknowledgements allow removal.
 func (c *ClaudeReceiver) Flush() error {
 	c.uploadMu.Lock()
 	defer c.uploadMu.Unlock()
@@ -193,37 +193,59 @@ func (c *ClaudeReceiver) Flush() error {
 		payload.Events = append(payload.Events, queued.Event)
 		payload.ClientVersion = queued.ClientVersion
 		paths[queued.Event.EventID] = path
-		if len(payload.Events) == 100 {
-			break
-		}
 	}
 	c.mu.Unlock()
-	if len(payload.Events) == 0 {
-		return nil
-	}
-	ack, err := UploadReport(c.cfg.Server, c.cfg.Credential, payload)
-	if err != nil {
-		return err
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, id := range append(ack.AcceptedEventIDs, ack.DuplicateEventIDs...) {
-		if path := paths[id]; path != "" {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return err
+	for offset := 0; offset < len(payload.Events); offset += 100 {
+		batch := payload
+		batch.Events = payload.Events[offset:min(offset+100, len(payload.Events))]
+		batchPaths := make(map[string]string, len(batch.Events))
+		for _, event := range batch.Events {
+			batchPaths[event.EventID] = paths[event.EventID]
+		}
+		ack, err := UploadReport(c.cfg.Server, c.cfg.Credential, batch)
+		if err != nil {
+			return err
+		}
+		c.mu.Lock()
+		for _, id := range append(ack.AcceptedEventIDs, ack.DuplicateEventIDs...) {
+			if path := batchPaths[id]; path != "" {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					c.mu.Unlock()
+					return err
+				}
 			}
 		}
-	}
-	for _, rejection := range ack.Rejected {
-		if path := paths[rejection.EventID]; path != "" {
-			// Preserve rejected usage for diagnosis without a retry loop. Do
-			// not persist arbitrary response text returned by a remote server.
-			if err := os.Rename(path, path+".rejected"); err != nil && !os.IsNotExist(err) {
-				return err
+		for _, rejection := range ack.Rejected {
+			if path := batchPaths[rejection.EventID]; path != "" {
+				// Preserve rejected usage for diagnosis without a retry loop. Do
+				// not persist arbitrary response text returned by a remote server.
+				if err := os.Rename(path, path+".rejected"); err != nil && !os.IsNotExist(err) {
+					c.mu.Unlock()
+					return err
+				}
 			}
 		}
+		c.mu.Unlock()
 	}
+
 	return nil
+}
+
+// runUploads reports at startup and on the same five-minute cadence as Codex.
+func (c *ClaudeReceiver) runUploads(ctx context.Context, diagnostics io.Writer) {
+	ticker := time.NewTicker(DefaultReportInterval)
+	defer ticker.Stop()
+	for {
+		if err := c.Flush(); err != nil {
+			// Count-only generic diagnostics; network errors can include URLs.
+			fmt.Fprintln(diagnostics, "warning: Claude usage upload failed; queued events retained")
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func RunClaudeReceiver(ctx context.Context, cfg Config, diagnostics io.Writer) error {
@@ -245,19 +267,7 @@ func RunClaudeReceiver(ctx context.Context, cfg Config, diagnostics io.Writer) e
 	workerDone := make(chan struct{})
 	go func() {
 		defer close(workerDone)
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			if err := collector.Flush(); err != nil {
-				// Count-only generic diagnostics; network errors can include URLs.
-				fmt.Fprintln(diagnostics, "warning: Claude usage upload failed; queued events retained")
-			}
-			select {
-			case <-workerCtx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
+		collector.runUploads(workerCtx, diagnostics)
 	}()
 	shutdownDone := make(chan struct{})
 	go func() {
