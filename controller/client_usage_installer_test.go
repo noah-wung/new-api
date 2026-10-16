@@ -80,8 +80,8 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 		answers             string
 		codex, claude, fail bool
 	}{
-		{interactive: true, answers: "y\nn\n", codex: true},
-		{interactive: true, answers: "n\ny\n", claude: true},
+		{interactive: true, answers: "1\n\n", codex: true},
+		{interactive: true, answers: "2\n\n", claude: true},
 		{codex: true, claude: true},
 		{codex: true, claude: true, fail: true},
 	} {

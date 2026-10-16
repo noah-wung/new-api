@@ -36,13 +36,15 @@ func TestInteractiveClientInstallerFetchesOnlySelectedSources(t *testing.T) {
 			available                    ClientInstallTokens
 			codex, claude, fetched, fail bool
 		}{
-			{name: "codex", input: "y\nn\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
-			{name: "claude", input: "n\ny\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, claude: true, fetched: true},
-			{name: "both", input: "yes\nY\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, claude: true, fetched: true},
-			{name: "skip", input: "n\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}},
-			{name: "invalid_then_retry", input: "all\ny\nn\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
-			{name: "eof", input: "y\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, fail: true},
-			{name: "only_allowed_source", input: "y\n", available: ClientInstallTokens{Claude: "claude-token"}, claude: true, fetched: true},
+			{name: "codex", input: "1\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
+			{name: "claude", input: "2\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, claude: true, fetched: true},
+			{name: "both", input: "1,2\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, claude: true, fetched: true},
+			{name: "toggle_off", input: "1 2\n2\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
+			{name: "cancel", input: "1\nq\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}},
+			{name: "skip", input: "\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}},
+			{name: "invalid_then_retry", input: "all\n1 99\n1\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
+			{name: "eof", input: "1\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, fail: true},
+			{name: "only_allowed_source", input: "1\n\n", available: ClientInstallTokens{Claude: "claude-token"}, claude: true, fetched: true},
 		} {
 			t.Run(fmt.Sprintf("managed=%t/%s", managed, tt.name), func(t *testing.T) {
 				requests := make(chan url.Values, 2)
@@ -78,6 +80,33 @@ func TestInteractiveClientInstallerFetchesOnlySelectedSources(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestClientSourceSelectorSupportsIndependentFutureSources(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX script execution requires sh")
+	}
+	requests := make(chan url.Values, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.URL.Query()
+		_, _ = w.Write([]byte("printf 'installer executed\\n'\n"))
+	}))
+	defer server.Close()
+	script := renderClientSourceSelector("macos", server.URL+"?", []clientInstallChoice{
+		{Name: "Codex", TokenParameter: "codex_token", Token: "codex"},
+		{Name: "Claude Code", TokenParameter: "claude_token", Token: "claude"},
+		{Name: "Future client's tool", TokenParameter: "future_token", Token: "future"},
+	})
+	runner := exec.Command("sh", "-c", script)
+	runner.Stdin = strings.NewReader("1,3\n1\n2\n\n")
+	output, err := runner.CombinedOutput()
+	require.NoError(t, err, string(output))
+	require.Len(t, requests, 1)
+	query := <-requests
+	assert.Empty(t, query.Get("codex_token"), "a choice can be deselected before confirmation")
+	assert.Equal(t, "claude", query.Get("claude_token"))
+	assert.Equal(t, "future", query.Get("future_token"), "new source rows need no new selection branches")
+	assert.Contains(t, string(output), "[ ] 1. Codex\n[x] 2. Claude Code\n[x] 3. Future client's tool")
 }
 
 func TestClientInstallerRejectsMixedAccountsConsumedTokensAndDisabledSources(t *testing.T) {
