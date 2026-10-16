@@ -3,6 +3,15 @@ package service
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/pem"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf16"
@@ -13,6 +22,63 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestInteractiveClientInstallerFetchesOnlySelectedSources(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX script execution requires sh")
+	}
+	setupReporterUpdateTables(t)
+	f := createSignedReleaseFixture(t)
+	require.NoError(t, ActivateReporterRelease(f.catalog.ReleaseID, 17))
+	for _, managed := range []bool{false, true} {
+		for _, tt := range []struct {
+			name, input                  string
+			available                    ClientInstallTokens
+			codex, claude, fetched, fail bool
+		}{
+			{name: "codex", input: "y\nn\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
+			{name: "claude", input: "n\ny\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, claude: true, fetched: true},
+			{name: "both", input: "yes\nY\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, claude: true, fetched: true},
+			{name: "skip", input: "n\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}},
+			{name: "invalid_then_retry", input: "all\ny\nn\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
+			{name: "eof", input: "y\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, fail: true},
+			{name: "only_allowed_source", input: "y\n", available: ClientInstallTokens{Claude: "claude-token"}, claude: true, fetched: true},
+		} {
+			t.Run(fmt.Sprintf("managed=%t/%s", managed, tt.name), func(t *testing.T) {
+				requests := make(chan url.Values, 2)
+				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					requests <- r.URL.Query()
+					_, _ = w.Write([]byte("printf 'selected installer executed\\n'\n"))
+				}))
+				defer server.Close()
+				cert := filepath.Join(t.TempDir(), "ca.pem")
+				require.NoError(t, os.WriteFile(cert, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0o600))
+				script, err := BuildClientInstallScript(BuildInstallScriptParams{Interactive: true, Managed: managed, AutoUpdate: false, Platform: "macos", ServiceURL: server.URL}, tt.available)
+				require.NoError(t, err)
+				runner := exec.Command("sh", "-c", script)
+				runner.Stdin = strings.NewReader(tt.input)
+				runner.Env = append(os.Environ(), "CURL_CA_BUNDLE="+cert)
+				output, err := runner.CombinedOutput()
+				if tt.fail {
+					require.Error(t, err, string(output))
+				} else {
+					require.NoError(t, err, string(output))
+				}
+				assert.Equal(t, tt.fetched, strings.Contains(string(output), "selected installer executed"))
+				if !tt.fetched {
+					assert.Empty(t, requests, "cancellation must not fetch or run an installer")
+					return
+				}
+				require.Len(t, requests, 1)
+				query := <-requests
+				assert.Equal(t, tt.codex, query.Get("codex_token") != "")
+				assert.Equal(t, tt.claude, query.Get("claude_token") != "")
+				assert.Equal(t, managed, query.Get("auto_update") == "false", "preserve signed mode even with automatic checks disabled")
+				assert.Empty(t, query.Get("interactive"), "selection must not recurse")
+			})
+		}
+	}
+}
 
 func TestClientInstallerRejectsMixedAccountsConsumedTokensAndDisabledSources(t *testing.T) {
 	setupExternalUsageTestTables(t)

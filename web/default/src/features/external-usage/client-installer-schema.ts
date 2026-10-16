@@ -7,6 +7,7 @@ export const clientInstallerSchema = z.object({
   platform: claudeInstallerSchema.shape.platform,
   auto_update: z.boolean().optional(),
   managed_install: z.boolean().optional(),
+  interactive: z.boolean().optional(),
   sources: z
     .array(z.enum(clientCollectorSources))
     .min(1)
@@ -15,3 +16,10 @@ export const clientInstallerSchema = z.object({
 })
 
 export type ClientInstallerInput = z.infer<typeof clientInstallerSchema>
+
+export const clientInstallerFormSchema = clientInstallerSchema.pick({
+  platform: true,
+  auto_update: true,
+})
+
+export type ClientInstallerFormInput = z.infer<typeof clientInstallerFormSchema>

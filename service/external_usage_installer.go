@@ -39,6 +39,7 @@ type ConsumeCodexInstallTokenResult struct {
 }
 
 type BuildInstallScriptParams struct {
+	Interactive      bool
 	Managed          bool
 	AutoUpdate       bool
 	BundledBinary    bool

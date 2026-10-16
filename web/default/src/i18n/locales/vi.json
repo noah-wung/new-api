@@ -1,5 +1,11 @@
 {
   "translation": {
+    "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.": "Chạy một lệnh và chọn nguồn thu thập trong thiết bị đầu cuối khi cài đặt. Báo cáo được gửi trong nền mỗi 5 phút.",
+    "Available collectors: {{clients}}": "Bộ thu thập khả dụng: {{clients}}",
+    "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.": "Chạy lại lệnh để thêm nguồn thu thập. Các bộ thu thập hiện có được giữ lại; bỏ qua một nguồn không gỡ cài đặt nguồn đó.",
+    "Generate Installer Command": "Tạo lệnh cài đặt",
+    "Registered Collection Sources": "Nguồn thu thập đã đăng ký",
+    "Collectors selected during installation appear below after registration, with a separate entry for each source. Registration does not confirm that a collector is running; check its last report.": "Các bộ thu thập được chọn khi cài đặt sẽ xuất hiện bên dưới sau khi đăng ký, mỗi nguồn một mục. Việc đăng ký không xác nhận bộ thu thập đang chạy; hãy kiểm tra thời gian báo cáo gần nhất.",
     "Automatically check and silently update collectors": "Tự động kiểm tra và nâng cấp trình thu thập trong nền",
     "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "Kiểm tra hằng ngày. Bản cập nhật được xác minh và cài đặt trong nền; nếu thất bại, phiên bản trước sẽ được khôi phục.",
     "Existing devices must run the signed installation command once to enable automatic updates.": "Thiết bị hiện có cần chạy lệnh cài đặt có chữ ký một lần để bật nâng cấp tự động.",

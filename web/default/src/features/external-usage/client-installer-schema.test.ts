@@ -40,3 +40,17 @@ test('signed installs preserve explicit automatic update choices', () => {
     assert.deepEqual(clientInstallerSchema.parse(values), values)
   }
 })
+
+test('interactive commands retain authorized source scope and installation mode', () => {
+  const values = {
+    ...input,
+    interactive: true,
+    managed_install: true,
+    auto_update: false,
+  }
+  assert.deepEqual(clientInstallerSchema.parse(values), values)
+  assert.equal(
+    clientInstallerSchema.safeParse({ ...values, interactive: 'yes' }).success,
+    false
+  )
+})

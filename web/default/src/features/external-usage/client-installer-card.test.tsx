@@ -36,13 +36,16 @@ function renderInstaller(
 test('one installer presents both clients without requiring an API address when both are enabled', () => {
   const html = renderInstaller(true, ['codex', 'claude_code'])
   assert.match(html, /Client Usage Collector/)
-  assert.match(html, /Install Selected Collectors/)
+  assert.match(html, /Generate Installer Command/)
   assert.match(html, /Codex/)
   assert.match(html, /Claude Code \(CLI and VS Code\)/)
   assert.doesNotMatch(html, /Claude API address/)
   assert.doesNotMatch(html, /already metered/)
   assert.match(html, /detects its API address automatically/)
   assert.match(html, /every 5 minutes/)
+  assert.match(html, /choose your collection sources in the terminal/)
+  assert.match(html, /Run the command again to add a collection source/)
+  assert.doesNotMatch(html, /id="collector-codex"|id="collector-claude_code"/)
   assert.match(html, /Checks daily/)
   assert.match(html, /failed updates restore the previous version/)
   assert.match(html, /Automatically check and silently update/)
@@ -59,7 +62,8 @@ test('one installer presents both clients without requiring an API address when 
 test('Codex-only installs do not require a Claude address', () => {
   const html = renderInstaller(true, ['codex'])
   assert.doesNotMatch(html, /Claude API address/)
-  assert.match(html, /Not enabled/)
+  assert.match(html, /Available collectors: Codex/)
+  assert.doesNotMatch(html, /Claude Code \(CLI and VS Code\)/)
 })
 
 test('disabled sources and viewing another user cannot generate a command', () => {

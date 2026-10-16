@@ -50,6 +50,10 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 		c.Set("id", 7)
 		CreateExternalUsageSelfClientInstallerCommand(c)
 	})
+	api.GET("/api/external-usage/self/devices", func(c *gin.Context) {
+		c.Set("id", 7)
+		ListExternalUsageDevices(c)
+	})
 	api.POST("/api/external-usage/self/codex-installer/exchange", ExchangeExternalUsageSelfCodexInstallerToken)
 	api.POST("/api/external-usage/self/claude-code-installer/exchange", ExchangeExternalUsageSelfClaudeInstallerToken)
 	api.GET("/api/external-usage/reporter/:script", GetExternalUsageReporterInstallScript)
@@ -71,8 +75,19 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 	claudeConfigPath := filepath.Join(home, ".new-api-usage-reporter", "claude", "config.json")
 	codexConfigPath := filepath.Join(home, ".new-api-usage-reporter", "config.json")
 	var previousClaude *usagereporter.Config
-	for attempt := 0; attempt < 3; attempt++ {
-		request := httptest.NewRequest(http.MethodPost, server.URL+"/api/external-usage/self/client-installer-command?user_id=99", strings.NewReader(`{"platform":"macos","sources":["codex","claude_code"]}`))
+	for attempt, step := range []struct {
+		interactive         bool
+		answers             string
+		codex, claude, fail bool
+	}{
+		{interactive: true, answers: "y\nn\n", codex: true},
+		{interactive: true, answers: "n\ny\n", claude: true},
+		{codex: true, claude: true},
+		{codex: true, claude: true, fail: true},
+	} {
+		body, err := common.Marshal(map[string]any{"platform": "macos", "sources": []string{"codex", "claude_code"}, "interactive": step.interactive})
+		require.NoError(t, err)
+		request := httptest.NewRequest(http.MethodPost, server.URL+"/api/external-usage/self/client-installer-command?user_id=99", bytes.NewReader(body))
 		w := httptest.NewRecorder()
 		api.ServeHTTP(w, request)
 		var result struct {
@@ -100,21 +115,21 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 		_, err = script.ReadFrom(resp.Body)
 		resp.Body.Close()
 		require.NoError(t, err)
-		if attempt == 2 {
+		if step.fail {
 			require.NoError(t, os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{"otelHeadersHelper":"company-helper"}`), 0o600))
 		}
-		runner := exec.Command("sh")
-		runner.Stdin = bytes.NewReader(script.Bytes())
+		runner := exec.Command("sh", "-c", script.String())
+		runner.Stdin = strings.NewReader(step.answers)
 		runner.Env = append(os.Environ(), "HOME="+home, "CLAUDE_CONFIG_DIR="+claudeDir, "PATH="+stubs+string(os.PathListSeparator)+os.Getenv("PATH"), "STUB_LOG="+filepath.Join(root, "launchctl.log"), "ANTHROPIC_BASE_URL=", "CLAUDE_CODE_USE_BEDROCK=", "CLAUDE_CODE_USE_VERTEX=", "CLAUDE_CODE_USE_FOUNDRY=")
 		output, err := runner.CombinedOutput()
-		if attempt == 2 {
+		if step.fail {
 			require.Error(t, err, "partial failure must not look like a successful installation")
 			assert.Contains(t, string(output), "Codex installation completed")
 			assert.Contains(t, string(output), "Claude Code installation failed")
 		} else {
 			require.NoError(t, err, string(output))
-			assert.Contains(t, string(output), "Codex installation completed")
-			assert.Contains(t, string(output), "Claude Code installation completed")
+			assert.Equal(t, step.codex, strings.Contains(string(output), "Codex installation completed"))
+			assert.Equal(t, step.claude, strings.Contains(string(output), "Claude Code installation completed"))
 		}
 		assert.Equal(t, int32(attempt+1), downloads.Load(), "each installation downloads exactly one executable")
 		codex, err := usagereporter.LoadConfig(codexConfigPath)
@@ -128,6 +143,15 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 			assert.Equal(t, []string{"https://gateway-alias.example"}, codex.GatewayURLs)
 			assert.Equal(t, []string{"legacy-gateway"}, codex.ExcludedCodexProviders)
 		}
+		if attempt == 0 {
+			_, err := os.Stat(claudeConfigPath)
+			assert.True(t, os.IsNotExist(err), "unselected source must not create local config")
+			devices, err := model.ListExternalUsageDevicesByUser(7)
+			require.NoError(t, err)
+			require.Len(t, devices, 1, "generating two source tokens must not register the unselected source")
+			assert.Equal(t, []string{"codex"}, devices[0].GetAllowedSources())
+			continue
+		}
 		claude, err := usagereporter.LoadConfig(claudeConfigPath)
 		require.NoError(t, err)
 		assert.Equal(t, usagereporter.SourceClaudeCode, claude.Source)
@@ -140,6 +164,19 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 	devices, err := model.ListExternalUsageDevicesByUser(7)
 	require.NoError(t, err)
 	assert.Len(t, devices, 2, "source-specific devices should be reused on reinstall")
+	recorder := httptest.NewRecorder()
+	api.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/external-usage/self/devices", nil))
+	var listed struct {
+		Success bool                         `json:"success"`
+		Data    []*model.ExternalUsageDevice `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &listed))
+	require.True(t, listed.Success, recorder.Body.String())
+	var registered []string
+	for _, device := range listed.Data {
+		registered = append(registered, device.GetAllowedSources()...)
+	}
+	assert.ElementsMatch(t, []string{"codex", "claude_code"}, registered, "personal backend must expose the sources registered during installation")
 	otherDevices, err := model.ListExternalUsageDevicesByUser(99)
 	require.NoError(t, err)
 	assert.Empty(t, otherDevices, "query user_id must not override the logged-in account")
@@ -156,6 +193,7 @@ func TestClientInstallerValidatesSelectionBeforeIssuingTokens(t *testing.T) {
 	for _, body := range []string{
 		`{"platform":"macos","sources":[]}`,
 		`{"platform":"macos","sources":["cursor"]}`,
+		`{"platform":"macos","sources":["codex"],"interactive":"yes"}`,
 		`{"platform":"macos","sources":["codex","codex"]}`,
 		`{"platform":"macos","sources":["codex","claude_code"],"upstream_url":"https://api.anthropic.com"}`,
 	} {

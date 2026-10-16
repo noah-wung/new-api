@@ -1,5 +1,11 @@
 {
   "translation": {
+    "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.": "コマンドを1回実行し、インストール時にターミナルで収集元を選択します。使用量は5分ごとにバックグラウンドで送信されます。",
+    "Available collectors: {{clients}}": "利用可能なコレクター：{{clients}}",
+    "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.": "収集元を追加するには、コマンドを再実行してください。既存のコレクターは保持され、選択しなかった収集元もアンインストールされません。",
+    "Generate Installer Command": "インストールコマンドを生成",
+    "Registered Collection Sources": "登録済みの収集元",
+    "Collectors selected during installation appear below after registration, with a separate entry for each source. Registration does not confirm that a collector is running; check its last report.": "インストール時に選択したコレクターは、登録後に収集元ごとに下に表示されます。登録されていても稼働中とは限りません。最終送信日時を確認してください。",
     "Automatically check and silently update collectors": "コレクターの更新を自動確認してバックグラウンドで適用",
     "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "毎日更新を確認します。検証後にバックグラウンドで適用し、失敗時は以前のバージョンに戻します。",
     "Existing devices must run the signed installation command once to enable automatic updates.": "既存の端末では、署名付きインストールコマンドを一度実行して自動更新を有効にしてください。",

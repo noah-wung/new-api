@@ -1,5 +1,11 @@
 {
   "translation": {
+    "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.": "执行一条命令，在安装时通过终端选择采集来源。数据每 5 分钟在后台上报一次。",
+    "Available collectors: {{clients}}": "可用采集器：{{clients}}",
+    "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.": "再次执行命令即可追加采集来源。已有采集器会保留，跳过某个来源不会卸载它。",
+    "Generate Installer Command": "生成安装命令",
+    "Registered Collection Sources": "已注册采集来源",
+    "Collectors selected during installation appear below after registration, with a separate entry for each source. Registration does not confirm that a collector is running; check its last report.": "安装时选择的采集器完成注册后会显示在下方，每个来源单独列出。注册不代表采集器正在运行，请结合最后上报时间查看。",
     "Automatically check and silently update collectors": "自动检查并静默升级采集器",
     "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "每天检查更新。新版通过验证后在后台安装，升级失败时恢复上一版本。",
     "Existing devices must run the signed installation command once to enable automatic updates.": "现有设备需执行一次签名安装命令，之后即可自动升级。",

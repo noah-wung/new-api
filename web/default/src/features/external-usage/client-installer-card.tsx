@@ -20,11 +20,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import {
   Field,
   FieldDescription,
-  FieldError,
   FieldGroup,
   FieldLabel,
-  FieldSet,
-  FieldLegend,
 } from '@/components/ui/field'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { CopyButton } from '@/components/copy-button'
@@ -33,9 +30,9 @@ import {
   getExternalUsageClientInstallerOptions,
 } from './api'
 import {
-  clientInstallerSchema,
+  clientInstallerFormSchema,
   clientCollectorSources,
-  type ClientInstallerInput,
+  type ClientInstallerFormInput,
 } from './client-installer-schema'
 import { normalizeInstallerCommandExpiry } from './installer-command'
 
@@ -47,16 +44,15 @@ export function ClientInstallerCard(props: {
   const availableSources = clientCollectorSources.filter((source) =>
     props.enabledSources.includes(source)
   )
-  const form = useForm<ClientInstallerInput>({
-    resolver: zodResolver(clientInstallerSchema),
+  const form = useForm<ClientInstallerFormInput>({
+    resolver: zodResolver(clientInstallerFormSchema),
     defaultValues: {
       platform: 'macos',
-      sources: availableSources,
       auto_update: true,
     },
   })
-  const sources = useWatch({ control: form.control, name: 'sources' })
-  const includeClaude = sources.includes('claude_code')
+  const sourceKey = availableSources.join(',')
+  const includeClaude = availableSources.includes('claude_code')
   const platform = useWatch({ control: form.control, name: 'platform' })
   const autoUpdate = useWatch({ control: form.control, name: 'auto_update' })
   const userId = useAuthStore((state) => state.auth.user?.id)
@@ -85,18 +81,21 @@ export function ClientInstallerCard(props: {
     requestGeneration.current++
     setCommand('')
     setExpiresAt(null)
-  }, [allowed, signedReady])
+  }, [allowed, signedReady, sourceKey, userId])
 
-  async function generateCommand(values: ClientInstallerInput) {
+  async function generateCommand(values: ClientInstallerFormInput) {
     if (!allowed) return
     invalidateCommand()
     const generation = requestGeneration.current
     try {
-      const result = await mutation.mutateAsync(
-        signedReady
-          ? { ...values, managed_install: true }
-          : { platform: values.platform, sources: values.sources }
-      )
+      const result = await mutation.mutateAsync({
+        platform: values.platform,
+        sources: availableSources,
+        interactive: true,
+        ...(signedReady
+          ? { managed_install: true, auto_update: values.auto_update }
+          : {}),
+      })
       if (generation === requestGeneration.current && result.success) {
         setCommand(result.data?.command ?? '')
         setExpiresAt(normalizeInstallerCommandExpiry(result.data?.expires_at))
@@ -112,7 +111,7 @@ export function ClientInstallerCard(props: {
         <CardTitle>{t('Client Usage Collector')}</CardTitle>
         <CardDescription>
           {t(
-            'Select your clients and run one command to install their collectors. Reports are sent every 5 minutes in the background.'
+            'Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.'
           )}
         </CardDescription>
       </CardHeader>
@@ -158,47 +157,22 @@ export function ClientInstallerCard(props: {
                 </ToggleGroupItem>
               </ToggleGroup>
             </Field>
-            <FieldSet>
-              <FieldLegend>{t('Clients to collect')}</FieldLegend>
-              <FieldGroup>
-                {clientCollectorSources.map((source) => (
-                  <Field
-                    key={source}
-                    orientation='horizontal'
-                    data-disabled={
-                      !allowed || !availableSources.includes(source)
-                    }
-                  >
-                    <Checkbox
-                      id={`collector-${source}`}
-                      disabled={!allowed || !availableSources.includes(source)}
-                      checked={sources.includes(source)}
-                      onCheckedChange={(checked) => {
-                        invalidateCommand()
-                        form.setValue(
-                          'sources',
-                          checked
-                            ? [...sources, source]
-                            : sources.filter((value) => value !== source),
-                          { shouldValidate: true }
-                        )
-                      }}
-                    />
-                    <FieldLabel htmlFor={`collector-${source}`}>
-                      {source === 'codex'
-                        ? 'Codex'
-                        : t('Claude Code (CLI and VS Code)')}
-                      {!availableSources.includes(source)
-                        ? ` — ${t('Not enabled')}`
-                        : ''}
-                    </FieldLabel>
-                  </Field>
-                ))}
-              </FieldGroup>
-              {sources.length === 0 ? (
-                <FieldError>{t('Select at least one client.')}</FieldError>
-              ) : null}
-            </FieldSet>
+            <FieldDescription>
+              {t('Available collectors: {{clients}}', {
+                clients: availableSources
+                  .map((source) =>
+                    source === 'codex'
+                      ? 'Codex'
+                      : t('Claude Code (CLI and VS Code)')
+                  )
+                  .join(', '),
+              })}
+            </FieldDescription>
+            <FieldDescription>
+              {t(
+                'Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.'
+              )}
+            </FieldDescription>
             {signedReady ? (
               <>
                 <Field orientation='horizontal' data-disabled={!allowed}>
@@ -253,13 +227,12 @@ export function ClientInstallerCard(props: {
               type='submit'
               disabled={
                 !allowed ||
-                sources.length === 0 ||
                 mutation.isPending ||
                 (options.isPending && options.isFetching)
               }
             >
               <HugeiconsIcon icon={Download04Icon} data-icon='inline-start' />
-              {t('Install Selected Collectors')}
+              {t('Generate Installer Command')}
             </Button>
           </FieldGroup>
         </form>

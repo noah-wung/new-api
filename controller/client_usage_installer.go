@@ -29,6 +29,7 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		UpstreamIsGateway bool     `json:"upstream_is_gateway"`
 		AutoUpdate        *bool    `json:"auto_update"`
 		ManagedInstall    bool     `json:"managed_install"`
+		Interactive       bool     `json:"interactive"`
 	}
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		common.ApiErrorMsg(c, "invalid request body")
@@ -54,7 +55,7 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		}
 	}
 	var tokens service.ClientInstallTokens
-	params := service.BuildInstallScriptParams{Platform: req.Platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c)}
+	params := service.BuildInstallScriptParams{Interactive: req.Interactive, Platform: req.Platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c)}
 	if req.ManagedInstall || req.AutoUpdate != nil && *req.AutoUpdate {
 		params.Managed = true
 		params.AutoUpdate = req.AutoUpdate != nil && *req.AutoUpdate
@@ -95,6 +96,10 @@ func GetExternalUsageClientInstallScript(c *gin.Context) {
 	if !ensureExternalUsageEnabled(c) {
 		return
 	}
+	if value := c.Query("interactive"); value != "" && value != "true" && value != "false" {
+		common.ApiErrorMsg(c, "invalid interactive installation option")
+		return
+	}
 	managed := c.Query("auto_update") != ""
 	if managed && c.Query("auto_update") != "true" && c.Query("auto_update") != "false" {
 		common.ApiErrorMsg(c, "invalid automatic update option")
@@ -110,7 +115,8 @@ func GetExternalUsageClientInstallScript(c *gin.Context) {
 		platform = service.ExternalUsageInstallerPlatformWindows
 	}
 	script, err := service.BuildClientInstallScript(service.BuildInstallScriptParams{
-		Managed: managed, AutoUpdate: c.Query("auto_update") == "true",
+		Interactive: c.Query("interactive") == "true",
+		Managed:     managed, AutoUpdate: c.Query("auto_update") == "true",
 		Platform: platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c),
 		AcceptWindowDays: external_usage_setting.GetSetting().AcceptWindowDays,
 	}, tokens)

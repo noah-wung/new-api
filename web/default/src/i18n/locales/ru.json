@@ -1,5 +1,11 @@
 {
   "translation": {
+    "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.": "Выполните одну команду и выберите источники сбора в терминале во время установки. Отчёты отправляются в фоновом режиме каждые 5 минут.",
+    "Available collectors: {{clients}}": "Доступные сборщики: {{clients}}",
+    "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.": "Чтобы добавить источник сбора, выполните команду повторно. Существующие сборщики сохраняются; пропуск источника не удаляет его.",
+    "Generate Installer Command": "Создать команду установки",
+    "Registered Collection Sources": "Зарегистрированные источники сбора",
+    "Collectors selected during installation appear below after registration, with a separate entry for each source. Registration does not confirm that a collector is running; check its last report.": "Выбранные при установке сборщики появятся ниже после регистрации, отдельно для каждого источника. Регистрация не подтверждает работу сборщика; проверьте время последнего отчёта.",
     "Automatically check and silently update collectors": "Автоматически проверять и устанавливать обновления сборщиков",
     "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "Проверка выполняется ежедневно. Обновления проверяются и устанавливаются в фоне; при сбое восстанавливается предыдущая версия.",
     "Existing devices must run the signed installation command once to enable automatic updates.": "Для включения автоматических обновлений на существующих устройствах нужно один раз выполнить команду установки подписанной версии.",

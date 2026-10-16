@@ -1,5 +1,11 @@
 {
   "translation": {
+    "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.": "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.",
+    "Available collectors: {{clients}}": "Available collectors: {{clients}}",
+    "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.": "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.",
+    "Generate Installer Command": "Generate Installer Command",
+    "Registered Collection Sources": "Registered Collection Sources",
+    "Collectors selected during installation appear below after registration, with a separate entry for each source. Registration does not confirm that a collector is running; check its last report.": "Collectors selected during installation appear below after registration, with a separate entry for each source. Registration does not confirm that a collector is running; check its last report.",
     "Automatically check and silently update collectors": "Automatically check and silently update collectors",
     "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.",
     "Existing devices must run the signed installation command once to enable automatic updates.": "Existing devices must run the signed installation command once to enable automatic updates.",

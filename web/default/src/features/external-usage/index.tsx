@@ -1116,7 +1116,9 @@ export function ExternalUsage() {
               <CardHeader>
                 <CardTitle>{t('Reporting Devices')}</CardTitle>
                 <CardDescription>
-                  {t('Issue one dedicated reporting credential per device.')}
+                  {t(
+                    'Collectors selected during installation appear below after registration, with a separate entry for each source. Registration does not confirm that a collector is running; check its last report.'
+                  )}
                   {isAdmin && !canIssueCredential
                     ? ` ${t('Reporting credentials must be issued by the target user.')}`
                     : ''}
@@ -1207,7 +1209,9 @@ export function ExternalUsage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t('Device')}</TableHead>
-                      <TableHead>{t('Sources')}</TableHead>
+                      <TableHead>
+                        {t('Registered Collection Sources')}
+                      </TableHead>
                       <TableHead>{t('Status')}</TableHead>
                       <TableHead>{t('Collector Updates')}</TableHead>
                       <TableHead>{t('Last Report')}</TableHead>
