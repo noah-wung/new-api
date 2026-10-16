@@ -41,3 +41,9 @@ skills-lock.json
 # Local-only live probes and scratch test workspaces.
 .local-tests/
 service/openaicompat/chat_responses_live_local_test.go
+
+# Only encrypted signing keys and public metadata belong in this directory.
+/release/signing/*
+!/release/signing/README.md
+!/release/signing/*.key.age
+!/release/signing/*public-keys.json

@@ -17,7 +17,7 @@
 
 ## 后续发布新版
 
-采集器版本独立维护在 `pkg/reporterupdate/VERSION`，当前为 `1.0.1`。修改采集器后提高该版本，再构建、部署网关镜像即可发布新下载资产，不需要配置签名发布流程。
+采集器版本独立维护在 `pkg/reporterupdate/VERSION`。修改采集器后提高该版本，再构建、部署网关镜像即可发布新下载资产，不需要配置签名发布流程。
 
 版本查询读取**实际下载二进制的 Go 构建信息**，不使用网关版本推测。Docker 和开发环境下载构建已自动注入版本；外置资产必须在构建时注入对应版本，例如：
 
@@ -42,27 +42,28 @@ Windows 构建还需使用 `-H=windowsgui`。未包含版本元数据的旧资�
 
 ## 发布准备
 
-自动更新使用独立采集器版本和 Ed25519 签名。普通网关 Docker 构建内的旧式下载资产仍供兼容入口使用；**它们不会自动成为可分发的签名发布包**。签名私钥不得进入源码、网关镜像、客户端或数据库。
+自动更新使用独立采集器版本和 Ed25519 签名。普通网关 Docker 构建内的旧式下载资产仍供兼容入口使用；**它们不会自动成为可分发的签名发布包**。明文签名私钥不得进入源码、网关镜像、客户端或数据库。按项目约定，标准 age 加密的私钥与公钥保存在 `release/signing/`，可随源码管理，解密口令单独保管。
 
-在受控发布环境中生成密钥，私钥路径放在项目目录之外：
+macOS 首次在本机生成密钥（已有密文时不要重新生成）：
 
 ```sh
-go run ./cmd/reporter-release --mode generate-key \
-  --key-id release-1 --key-file /secure/reporter-release.key
+sh tools/reporter-release.sh --mode generate-key
+sh tools/reporter-release.sh --mode check-key
 ```
 
-命令以 `0600` 创建私钥，输出可公开的 base64 公钥。发布时从项目根目录运行：
+命令生成 `release/signing/release-1.key.age` 和 `public-keys.json`；256 bit 随机解密口令存入 macOS Keychain（service：`new-api.reporter-release`，account：`release-1`），不显示口令，也不落盘明文私钥。解密和签名在内存中完成。口令须另做可信备份，详见 [密钥管理说明](../../release/signing/README.md)。发布时从项目根目录运行：
 
 ```sh
-go run ./cmd/reporter-release --mode build \
-  --key-file /secure/reporter-release.key --key-id release-1 \
+sh tools/reporter-release.sh --mode build \
   --out /srv/reporter-releases --release reporter-1.0.0 \
   --version 1.0.0 --sequence 1 --rollout 10 --seed stable-1
 ```
 
 工具构建 darwin-arm64、darwin-amd64 和 windows-amd64，注入采集器版本、Git commit、release ID；Windows 使用 GUI 子系统。
 
-仓库同时提供手动触发的 `Signed collector release` 工作流。在 GitHub 的 `collector-release` environment 配置 `REPORTER_RELEASE_SIGNING_KEY`（上述私钥文件的 base64 文本）后，可输入版本、发布 ID、序号和灰度参数生成签名资产 artifact。工作流不会自动部署或激活发布，artifact 不含私钥。
+仓库同时提供手动触发的 `Signed collector release` 工作流。在 GitHub 的 `collector-release` environment 配置 `REPORTER_RELEASE_KEY_PASSPHRASE`（与上述密文对应的解密口令）后，可输入版本、发布 ID、序号和灰度参数生成签名资产 artifact。工作流从仓库读取密文和公钥，不写明文私钥文件，不再使用旧 `REPORTER_RELEASE_SIGNING_KEY`。工作流不会自动部署或激活发布，artifact 不含私钥。
+
+非 macOS 环境可从受控 Secret 注入 `REPORTER_RELEASE_KEY_PASSPHRASE` 后运行相同脚本。旧的项目外 `--key-file` 明文私钥方式仍兼容，但不能与 `--encrypted-key-file` 同时使用；缺少解密口令时不会自动回退到明文方式。
 
 发布目录格式：
 
@@ -90,8 +91,7 @@ NEW_API_USAGE_REPORTER_TRUST_KEYS={"release-1":"<base64-public-key>"}
 同一发布扩大灰度时，只重新签署清单，不重新编译二进制：
 
 ```sh
-go run ./cmd/reporter-release --mode sign \
-  --key-file /secure/reporter-release.key --key-id release-1 \
+sh tools/reporter-release.sh --mode sign \
   --out /srv/reporter-releases --release reporter-1.0.0 \
   --version 1.0.0 --sequence 2 --rollout 50 --seed stable-1
 ```

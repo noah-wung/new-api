@@ -3,7 +3,6 @@ package main
 
 import (
 	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"flag"
@@ -26,77 +25,50 @@ func main() {
 	}
 }
 func run() error {
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-	mode := flag.String("mode", "build", "generate-key, build or sign (refresh catalog without rebuilding)")
-	keyPath := flag.String("key-file", "", "Private key file outside the source tree")
-	keyID := flag.String("key-id", "release-1", "Signing key identifier")
-	out := flag.String("out", "", "Release asset directory")
-	version := flag.String("version", "", "Reporter SemVer")
-	id := flag.String("release", "", "Immutable release identifier")
-	sequence := flag.Int64("sequence", 0, "Strictly increasing catalog sequence")
-	rollout := flag.Int("rollout", 100, "Rollout percentage")
-	seed := flag.String("seed", "stable", "Stable rollout seed")
-	days := flag.Int("valid-days", 30, "Catalog lifetime in days")
-	nextKeys := flag.String("next-keys", "", "Optional JSON public keys authorized by this signing key")
-	if e := flag.CommandLine.Parse(os.Args[1:]); e != nil {
+	return runRelease(os.Args[1:])
+}
+
+func runRelease(args []string) error {
+	flags := flag.NewFlagSet("reporter-release", flag.ContinueOnError)
+	mode := flags.String("mode", "build", "generate-key, check-key, build or sign (refresh catalog without rebuilding)")
+	keyPath := flags.String("key-file", "", "Private key file outside the source tree")
+	encryptedKeyPath := flags.String("encrypted-key-file", "", "age-encrypted signing key (may be tracked in Git)")
+	publicKeysPath := flags.String("public-keys-file", "", "Public keys JSON to write on generation or match before signing")
+	keychainService := flags.String("keychain-service", "", "macOS Keychain service for the signing passphrase; account is key-id")
+	keyID := flags.String("key-id", "release-1", "Signing key identifier")
+	out := flags.String("out", "", "Release asset directory")
+	version := flags.String("version", "", "Reporter SemVer")
+	id := flags.String("release", "", "Immutable release identifier")
+	sequence := flags.Int64("sequence", 0, "Strictly increasing catalog sequence")
+	rollout := flags.Int("rollout", 100, "Rollout percentage")
+	seed := flags.String("seed", "stable", "Stable rollout seed")
+	days := flags.Int("valid-days", 30, "Catalog lifetime in days")
+	nextKeys := flags.String("next-keys", "", "Optional JSON public keys authorized by this signing key")
+	if e := flags.Parse(args); e != nil {
 		return e
 	}
-	if *keyPath == "" || !reporterupdate.ValidID(*keyID) {
-		return errors.New("key-file and a valid key-id are required")
+	if (*keyPath == "") == (*encryptedKeyPath == "") || !reporterupdate.ValidID(*keyID) {
+		return errors.New("provide exactly one of key-file or encrypted-key-file, and a valid key-id")
 	}
-	abs, e := filepath.Abs(*keyPath)
-	if e != nil {
-		return e
-	}
-	cwd, e := os.Getwd()
-	if e != nil {
-		return e
-	}
-	rel, e := filepath.Rel(cwd, abs)
-	if e != nil || (!strings.HasPrefix(rel, ".."+string(os.PathSeparator)) && rel != "..") {
-		return errors.New("store signing keys outside the source tree")
-	}
+	keyOptions := signingKeyOptions{PlainPath: *keyPath, EncryptedPath: *encryptedKeyPath, PublicKeysPath: *publicKeysPath, KeyID: *keyID, KeychainService: *keychainService}
 	if *mode == "generate-key" {
-		pub, priv, e := ed25519.GenerateKey(rand.Reader)
-		if e != nil {
-			return e
-		}
-		f, e := os.OpenFile(abs, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if e != nil {
-			return e
-		}
-		_, e = f.WriteString(base64.StdEncoding.EncodeToString(priv))
-		if ce := f.Close(); e == nil {
-			e = ce
-		}
-		if e != nil {
-			return e
-		}
-		fmt.Printf("public key %s: %s\n", *keyID, base64.StdEncoding.EncodeToString(pub))
-		return nil
+		return keyOptions.generate()
 	}
-	if *mode != "build" && *mode != "sign" {
+	if *mode != "check-key" && *mode != "build" && *mode != "sign" {
 		return errors.New("unsupported mode")
 	}
-	if !reporterupdate.ValidVersion(*version) || !reporterupdate.ValidID(*id) || *sequence < 1 || *out == "" || *days < 1 || *days > 90 {
+	if *mode != "check-key" && (!reporterupdate.ValidVersion(*version) || !reporterupdate.ValidID(*id) || *sequence < 1 || *out == "" || *days < 1 || *days > 90) {
 		return errors.New("version, release, sequence, out and a 1..90 day lifetime are required")
 	}
-	info, e := os.Stat(abs)
+	key, e := keyOptions.load()
 	if e != nil {
 		return e
 	}
-	if info.Mode().Perm()&0o077 != 0 {
-		return errors.New("private key permissions must be 0600")
+	defer clear(key)
+	if *mode == "check-key" {
+		fmt.Println("signing key verified:", *keyID)
+		return nil
 	}
-	encoded, e := os.ReadFile(abs)
-	if e != nil {
-		return e
-	}
-	raw, e := base64.StdEncoding.DecodeString(strings.TrimSpace(string(encoded)))
-	if e != nil || len(raw) != ed25519.PrivateKeySize {
-		return errors.New("invalid private key")
-	}
-	key := ed25519.PrivateKey(raw)
 	commitBytes, e := exec.Command("git", "rev-parse", "HEAD").Output()
 	if e != nil {
 		return e
