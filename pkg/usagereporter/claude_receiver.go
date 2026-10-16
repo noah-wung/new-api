@@ -23,7 +23,9 @@ type ClaudeReceiver struct {
 
 func claudeReportingConfig(cfg Config) ReporterConfig {
 	external := cfg.ClaudeExternalURLs
-	if external == nil {
+	if cfg.ClaudeAutoRoute {
+		external = nil
+	} else if external == nil {
 		external = []string{"https://api.anthropic.com"}
 	}
 	return ReporterConfig{Source: cfg.Source, Server: cfg.Server, Credential: cfg.Credential,
@@ -81,7 +83,11 @@ func (c *ClaudeReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, resource := range request.ResourceLogs {
 		for _, scope := range resource.ScopeLogs {
 			for _, record := range scope.LogRecords {
-				event, err := normalizeClaudeRequest(record, resource.Resource.Attributes, c.policy, window)
+				var route []string
+				if c.cfg.ClaudeAutoRoute || r.Header.Get(ClaudeOriginHeader) != "" {
+					route = []string{r.Header.Get(ClaudeOriginHeader)}
+				}
+				event, err := normalizeClaudeRequest(record, resource.Resource.Attributes, c.policy, window, route...)
 				if err != nil {
 					rejected++
 					continue

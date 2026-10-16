@@ -1,5 +1,6 @@
 {
   "translation": {
+    "Claude Code detects its API address automatically. Non-gateway usage is reported; this gateway and its configured aliases are excluded. Restart Claude Code CLI and VS Code sessions after installation.": "Claude Code は API アドレスを自動検出します。このゲートウェイ以外の使用量を報告し、このゲートウェイと設定済みの別名を除外します。インストール後に CLI と VS Code のセッションを再起動してください。",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

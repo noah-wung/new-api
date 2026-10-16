@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/reporterupdate"
 	"github.com/QuantumNous/new-api/pkg/usagereporter"
 )
@@ -56,11 +57,20 @@ func runReporter() (runErr error) {
 	serve := flag.Bool("serve", false, "Run a streaming usage collector until interrupted")
 	configureClaude := flag.Bool("configure-claude", false, "Merge telemetry into Claude user settings and exit")
 	claudeSettings := flag.String("claude-settings", "", "Claude user settings.json (defaults to CLAUDE_CONFIG_DIR/settings.json or ~/.claude/settings.json)")
-	claudeUpstream := flag.String("claude-upstream", "", "Explicit effective upstream URL for the Claude telemetry profile")
+	_ = flag.String("claude-upstream", "", "Deprecated; routing is detected automatically")
+	claudeHeaders := flag.Bool("claude-otel-headers", false, "Emit runtime Claude telemetry routing headers")
 	installClaude := flag.Bool("install-claude", false, "Exchange a one-time Claude install token and configure telemetry")
 	installCodex := flag.Bool("install-codex", false, "Exchange an installation token, preserving existing Codex configuration")
 	installToken := flag.String("install-token", "", "One-time client installer token")
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
+		return err
+	}
+	if *claudeHeaders {
+		content, err := common.Marshal(usagereporter.ClaudeTelemetryHeaders())
+		if err != nil {
+			return err
+		}
+		_, err = os.Stdout.Write(append(content, '\n'))
 		return err
 	}
 	if *logPath != "" {
@@ -189,6 +199,7 @@ func runReporter() (runErr error) {
 		if *serve {
 			return errors.New("--configure-claude and --serve must be run separately")
 		}
+		cfg.ClaudeAutoRoute = true
 		if cfg.ClaudeReceiverToken == "" {
 			var token [32]byte
 			if _, err := rand.Read(token[:]); err != nil {
@@ -211,9 +222,17 @@ func runReporter() (runErr error) {
 		if err != nil {
 			return err
 		}
-		if err := usagereporter.ConfigureClaudeTelemetry(cfg, settingsPath, *claudeUpstream); err != nil {
+		binaryPath, err := os.Executable()
+		if err != nil {
 			return err
 		}
+		if err := usagereporter.ConfigureClaudeTelemetry(cfg, settingsPath, binaryPath); err != nil {
+			return err
+		}
+		if err := usagereporter.SaveConfig(expandedConfigPath, cfg); err != nil {
+			return err
+		}
+
 		fmt.Println("Claude telemetry configured; restart Claude Code CLI and VS Code sessions")
 		return nil
 	}

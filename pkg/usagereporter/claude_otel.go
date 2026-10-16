@@ -13,8 +13,8 @@ import (
 
 const SourceClaudeCode = "claude_code"
 
-// ClaudeUpstreamAttribute is an operator declaration of the effective route.
-// Claude Code does not itself attach a trustworthy upstream URL to API events.
+// ClaudeUpstreamAttribute supports legacy telemetry profiles. Automatic
+// installations use the runtime header and never trust a static declaration.
 const ClaudeUpstreamAttribute = "new_api.upstream_origin"
 
 type otlpValue struct {
@@ -77,7 +77,7 @@ func claudeListenAddress(cfg Config) (string, error) {
 // normalizeClaudeRequest retains only usage metadata; arbitrary attributes,
 // event bodies and source identities never enter the durable queue. Only the
 // normalized origin is retained locally so queued events can be re-filtered.
-func normalizeClaudeRequest(record otlpLogRecord, resource []otlpAttribute, policy *RoutePolicy, window clientAcceptWindow) (*CollectedEvent, error) {
+func normalizeClaudeRequest(record otlpLogRecord, resource []otlpAttribute, policy *RoutePolicy, window clientAcceptWindow, runtimeOrigin ...string) (*CollectedEvent, error) {
 	attributes := make(map[string]otlpValue)
 	for _, attr := range resource {
 		attributes[attr.Key] = attr.Value
@@ -95,7 +95,11 @@ func normalizeClaudeRequest(record otlpLogRecord, resource []otlpAttribute, poli
 	if name != "claude_code.api_request" && name != "api_request" {
 		return nil, nil
 	}
-	origin, err := NormalizeUpstreamURL(attributes[ClaudeUpstreamAttribute].text())
+	route := attributes[ClaudeUpstreamAttribute].text()
+	if len(runtimeOrigin) > 0 {
+		route = runtimeOrigin[0]
+	}
+	origin, err := NormalizeUpstreamURL(route)
 	if err != nil {
 		return nil, errors.New("missing or invalid upstream declaration")
 	}

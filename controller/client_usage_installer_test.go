@@ -72,7 +72,7 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 	codexConfigPath := filepath.Join(home, ".new-api-usage-reporter", "config.json")
 	var previousClaude *usagereporter.Config
 	for attempt := 0; attempt < 3; attempt++ {
-		request := httptest.NewRequest(http.MethodPost, server.URL+"/api/external-usage/self/client-installer-command?user_id=99", strings.NewReader(`{"platform":"macos","sources":["codex","claude_code"],"upstream_url":"https://api.anthropic.com","upstream_is_gateway":false}`))
+		request := httptest.NewRequest(http.MethodPost, server.URL+"/api/external-usage/self/client-installer-command?user_id=99", strings.NewReader(`{"platform":"macos","sources":["codex","claude_code"]}`))
 		w := httptest.NewRecorder()
 		api.ServeHTTP(w, request)
 		var result struct {
@@ -101,7 +101,7 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 		resp.Body.Close()
 		require.NoError(t, err)
 		if attempt == 2 {
-			require.NoError(t, os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{"env":{"ANTHROPIC_BASE_URL":"https://different.example"}}`), 0o600))
+			require.NoError(t, os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{"otelHeadersHelper":"company-helper"}`), 0o600))
 		}
 		runner := exec.Command("sh")
 		runner.Stdin = bytes.NewReader(script.Bytes())

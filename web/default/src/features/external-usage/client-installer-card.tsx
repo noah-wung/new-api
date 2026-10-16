@@ -25,7 +25,6 @@ import {
   FieldSet,
   FieldLegend,
 } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { CopyButton } from '@/components/copy-button'
 import { createExternalUsageClientInstallerCommand } from './api'
@@ -49,17 +48,11 @@ export function ClientInstallerCard(props: {
     defaultValues: {
       platform: 'macos',
       sources: availableSources,
-      upstream_url: 'https://api.anthropic.com',
-      upstream_is_gateway: false,
     },
   })
   const sources = useWatch({ control: form.control, name: 'sources' })
   const includeClaude = sources.includes('claude_code')
   const platform = useWatch({ control: form.control, name: 'platform' })
-  const isGateway = useWatch({
-    control: form.control,
-    name: 'upstream_is_gateway',
-  })
   const [command, setCommand] = useState('')
   const [expiresAt, setExpiresAt] = useState<number | null>(null)
   const requestGeneration = useRef(0)
@@ -201,58 +194,11 @@ export function ClientInstallerCard(props: {
               )}
             </FieldDescription>
             {includeClaude ? (
-              <>
-                <Field
-                  data-disabled={!allowed}
-                  data-invalid={!!form.formState.errors.upstream_url}
-                >
-                  <FieldLabel htmlFor='claude-upstream-url'>
-                    {t('Claude API address')}
-                  </FieldLabel>
-                  <Input
-                    id='claude-upstream-url'
-                    type='url'
-                    required
-                    disabled={!allowed}
-                    aria-describedby='claude-upstream-help'
-                    aria-invalid={!!form.formState.errors.upstream_url}
-                    {...form.register('upstream_url', {
-                      onChange: invalidateCommand,
-                    })}
-                  />
-                  <FieldDescription id='claude-upstream-help'>
-                    {t(
-                      'Use the address configured in Claude Code. Installation stops if it does not match. Do not include API keys.'
-                    )}
-                  </FieldDescription>
-                  {form.formState.errors.upstream_url ? (
-                    <FieldError>
-                      {t(
-                        'Enter a valid HTTP(S) Claude API address without credentials, query parameters, or fragments.'
-                      )}
-                    </FieldError>
-                  ) : null}
-                </Field>
-                <Field orientation='horizontal' data-disabled={!allowed}>
-                  <Checkbox
-                    id='claude-upstream-gateway'
-                    disabled={!allowed}
-                    checked={isGateway}
-                    onCheckedChange={(checked) => {
-                      invalidateCommand()
-                      form.setValue('upstream_is_gateway', checked)
-                    }}
-                  />
-                  <FieldLabel htmlFor='claude-upstream-gateway'>
-                    {t('This address is already metered by this gateway.')}
-                  </FieldLabel>
-                </Field>
-                <FieldDescription>
-                  {t(
-                    'Gateway usage is excluded. After installation, restart Claude Code CLI and VS Code sessions.'
-                  )}
-                </FieldDescription>
-              </>
+              <FieldDescription>
+                {t(
+                  'Claude Code detects its API address automatically. Non-gateway usage is reported; this gateway and its configured aliases are excluded. Restart Claude Code CLI and VS Code sessions after installation.'
+                )}
+              </FieldDescription>
             ) : null}
             <Button
               type='submit'

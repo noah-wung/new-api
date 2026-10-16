@@ -6,7 +6,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/pkg/usagereporter"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/external_usage_setting"
 	"github.com/gin-gonic/gin"
@@ -43,12 +42,6 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		}
 		selected[source] = true
 		if !ensureExternalUsageSourceEnabled(c, source) {
-			return
-		}
-	}
-	if selected[model.ExternalUsageSourceClaudeCode] {
-		if _, err := usagereporter.NormalizeClaudeUpstreamURL(req.UpstreamURL); err != nil {
-			common.ApiErrorMsg(c, "invalid Claude upstream URL")
 			return
 		}
 	}

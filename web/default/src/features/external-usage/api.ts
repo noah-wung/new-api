@@ -73,8 +73,6 @@ export async function createExternalUsageCodexInstallerCommand(payload: {
 
 export async function createExternalUsageClaudeInstallerCommand(payload: {
   platform: ExternalUsageInstallerPlatform
-  upstream_url: string
-  upstream_is_gateway: boolean
 }): Promise<{ success: boolean; data?: ExternalUsageInstallerCommandData }> {
   const res = await api.post(
     '/api/external-usage/self/claude-code-installer-command',

@@ -25,13 +25,15 @@ function renderInstaller(canRequest: boolean, enabledSources: string[]) {
   )
 }
 
-test('one installer presents both clients and the Claude route when both are enabled', () => {
+test('one installer presents both clients without requiring an API address when both are enabled', () => {
   const html = renderInstaller(true, ['codex', 'claude_code'])
   assert.match(html, /Client Usage Collector/)
   assert.match(html, /Install Selected Collectors/)
   assert.match(html, /Codex/)
   assert.match(html, /Claude Code \(CLI and VS Code\)/)
-  assert.match(html, /Claude API address/)
+  assert.doesNotMatch(html, /Claude API address/)
+  assert.doesNotMatch(html, /already metered/)
+  assert.match(html, /detects its API address automatically/)
   assert.match(html, /every 5 minutes/)
   assert.match(html, /Checks daily and notifies you/)
   assert.doesNotMatch(html, /Automatically check and silently update/)

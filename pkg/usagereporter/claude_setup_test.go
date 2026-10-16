@@ -18,8 +18,9 @@ func TestConfigureClaudeTelemetryPreservesSettingsAndPolicy(t *testing.T) {
 	settingsPath := filepath.Join(t.TempDir(), "settings.json")
 	previous := `{"permissions":{"deny":["Bash(rm:*)"]},"hooks":{"Stop":[]},"env":{"ANTHROPIC_API_KEY":"private-fixture","OTEL_RESOURCE_ATTRIBUTES":"department=engineering,new_api.upstream_origin=https://old.example","OTEL_METRICS_EXPORTER":"console","OTEL_LOG_RAW_API_BODIES":"1"}}`
 	require.NoError(t, os.WriteFile(settingsPath, []byte(previous), 0o600))
+	binaryPath := filepath.Join(t.TempDir(), "reporter")
 	for i := 0; i < 2; i++ {
-		require.NoError(t, ConfigureClaudeTelemetry(cfg, settingsPath, "https://api.anthropic.com"))
+		require.NoError(t, ConfigureClaudeTelemetry(cfg, settingsPath, binaryPath))
 	}
 	backup, err := os.ReadFile(settingsPath + ".before-new-api-telemetry")
 	require.NoError(t, err)
@@ -28,18 +29,21 @@ func TestConfigureClaudeTelemetryPreservesSettingsAndPolicy(t *testing.T) {
 	require.NoError(t, err)
 	var settings struct {
 		Permissions map[string][]string `json:"permissions"`
+		Helper      string              `json:"otelHeadersHelper"`
 		Hooks       map[string]any      `json:"hooks"`
 		Env         map[string]string   `json:"env"`
 	}
 	require.NoError(t, common.Unmarshal(content, &settings))
 	assert.Equal(t, []string{"Bash(rm:*)"}, settings.Permissions["deny"])
 	assert.Contains(t, settings.Hooks, "Stop")
+	assert.Contains(t, settings.Helper, "--claude-otel-headers")
+	assert.Contains(t, settings.Helper, binaryPath)
 	assert.Equal(t, "private-fixture", settings.Env["ANTHROPIC_API_KEY"])
 	assert.Equal(t, "console", settings.Env["OTEL_METRICS_EXPORTER"])
 	assert.Equal(t, "0", settings.Env["OTEL_LOG_RAW_API_BODIES"])
 	assert.Equal(t, "http/json", settings.Env["OTEL_EXPORTER_OTLP_LOGS_PROTOCOL"])
 	assert.Equal(t, "http://127.0.0.1:4318/v1/logs", settings.Env["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"])
-	assert.Equal(t, "department=engineering,new_api.upstream_origin=https://api.anthropic.com", settings.Env["OTEL_RESOURCE_ATTRIBUTES"])
+	assert.Equal(t, "department=engineering", settings.Env["OTEL_RESOURCE_ATTRIBUTES"])
 	assert.NotContains(t, settings.Env, "ANTHROPIC_BASE_URL", "telemetry configuration must not change API routing")
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
@@ -57,32 +61,23 @@ func TestConfigureClaudeTelemetryPreservesSettingsAndPolicy(t *testing.T) {
 	assert.Equal(t, cfg.ClaudeListen, loaded.ClaudeListen)
 }
 
-func TestConfigureClaudeTelemetryRejectsAmbiguousRouting(t *testing.T) {
-	t.Setenv("ANTHROPIC_BASE_URL", "")
-	t.Setenv("CLAUDE_CODE_USE_BEDROCK", "")
-	t.Setenv("CLAUDE_CODE_USE_VERTEX", "")
-	t.Setenv("CLAUDE_CODE_USE_FOUNDRY", "")
+func TestConfigureClaudeTelemetryDoesNotRequireAnAddress(t *testing.T) {
 	cfg := claudeReceiverConfig(t, "https://token.example")
-	for _, tc := range []struct{ name, settings, upstream string }{
-		{"undeclared", `{}`, ""},
-		{"custom not allowed", `{"env":{"ANTHROPIC_BASE_URL":"https://custom.example"}}`, "https://custom.example"},
-		{"gateway mismatch", `{"env":{"ANTHROPIC_BASE_URL":"https://token.example"}}`, "https://api.anthropic.com"},
-		{"alternate provider", `{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}`, "https://api.anthropic.com"},
-		{"broken settings", `{"env":`, "https://api.anthropic.com"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "settings.json")
-			require.NoError(t, os.WriteFile(path, []byte(tc.settings), 0o600))
-			require.Error(t, ConfigureClaudeTelemetry(cfg, path, tc.upstream))
-			content, err := os.ReadFile(path)
-			require.NoError(t, err)
-			assert.Equal(t, tc.settings, string(content))
-		})
+	for _, settings := range []string{`{}`, `{"env":{"ANTHROPIC_BASE_URL":"https://third-party.example/v1"}}`, `{"env":{"ANTHROPIC_BASE_URL":"https://token.example"}}`, `{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}`} {
+		path := filepath.Join(t.TempDir(), "settings.json")
+		require.NoError(t, os.WriteFile(path, []byte(settings), 0o600))
+		require.NoError(t, ConfigureClaudeTelemetry(cfg, path, filepath.Join(t.TempDir(), "reporter")))
 	}
-	path := filepath.Join(t.TempDir(), "settings.json")
-	require.NoError(t, os.WriteFile(path, []byte(`{"env":{"ANTHROPIC_BASE_URL":"https://token.example/v1"}}`), 0o600))
-	require.NoError(t, ConfigureClaudeTelemetry(cfg, path, "https://token.example"), "gateway traffic can be tagged explicitly for exclusion")
-	content, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "new_api.upstream_origin=https://token.example")
+}
+
+func TestConfigureClaudeTelemetryPreservesIncompatibleSettings(t *testing.T) {
+	cfg := claudeReceiverConfig(t, "https://token.example")
+	for _, settings := range []string{`{"env":`, `{"env":null}`, `{"otelHeadersHelper":"my-company-helper"}`} {
+		path := filepath.Join(t.TempDir(), "settings.json")
+		require.NoError(t, os.WriteFile(path, []byte(settings), 0o600))
+		require.Error(t, ConfigureClaudeTelemetry(cfg, path, filepath.Join(t.TempDir(), "reporter")))
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, settings, string(content))
+	}
 }

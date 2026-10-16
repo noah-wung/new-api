@@ -27,15 +27,15 @@
 登录后进入“外部用量”，使用统一的“客户端用量采集器”入口；可同时勾选 Codex 和 Claude Code，一条命令安装全部所选采集器。完整流程见 [统一安装说明](client-usage-collectors.md)。
 
 1. 选择 macOS 或 Windows，并勾选 Claude Code。
-2. 填写 Claude Code 实际使用的 API 地址；若是本网关的地址或别名，勾选“此地址的用量已由本网关计量”。地址不能包含 API 密钥、认证信息、查询参数或片段。
+2. 无需填写 API 地址，也无需手工选择是否由网关计量。采集器从 Claude 进程的运行环境自动识别来源。
 3. 点击“安装所选采集器”，复制生成的限时命令，在运行 Claude Code 的设备终端执行。
-4. 安装脚本下载工具、兑换绑定当前登录用户的单次令牌、核对本机路由、合并 telemetry 配置，并注册持续运行的用户后台服务。完成后重启 Claude Code CLI 和 VS Code 会话。
+4. 安装脚本下载工具、兑换绑定当前登录用户的单次令牌、合并 telemetry 配置与动态来源 helper，并注册持续运行的用户后台服务。完成后重启 Claude Code CLI 和 VS Code 会话。
 
-来源未由管理员启用时，该客户端选项会禁用；其他已启用的客户端仍可安装。管理员查看其他用户时不能代该用户生成命令；需以目标用户登录。路由选择保存在服务器令牌记录中，不能通过篡改下载 URL 改变，且令牌不能兑换为 Codex 凭据。
+来源未由管理员启用时，该客户端选项会禁用；其他已启用的客户端仍可安装。管理员查看其他用户时不能代该用户生成命令；需以目标用户登录。令牌绑定登录用户与客户端来源，不能兑换为 Codex 凭据。
 
 自动安装路径为 `~/.new-api-usage-reporter/claude/`，包含独立二进制、`config.json` 和状态文件；不会覆盖 Codex 的配置或后台任务。macOS 注册 `pro.newapi.usage-reporter.claude` LaunchAgent，Windows 注册 `new-api-claude-usage-reporter` 当前用户登录任务。相同账户、相同设备的有效旧上报凭据会复用，保留本机 token、过滤策略与待上报队列；来源权限不一致、设备被撤销或切换账户时重新签发，并隔离旧队列。
 
-安装前请确认用户配置、启动环境和扩展专用配置的路由一致。发现本机地址与后台声明不符时，安装会停止，不替换已有后台服务；修正地址后重新生成安装命令即可。脚本会备份首次修改前的 Claude 用户设置。
+安装脚本保留 API 路由和其他用户设置，备份首次修改前的设置。如已存在其他 `otelHeadersHelper`，安装会提示冲突并保留原设置；应先合并已有遥测需求。
 
 以下手动步骤适用于 Linux、自定义后台管理或排障；通过后台命令安装的用户无需手动创建凭据和配置文件。
 
@@ -74,23 +74,20 @@ Linux 可从源码构建。将对应二进制放到当前用户的 `~/.new-api-u
   "accept_window_days": 90,
   "claude_listen": "127.0.0.1:4318",
   "gateway_urls": ["http://172.16.0.37:3000"],
-  "claude_external_urls": ["https://api.anthropic.com"]
+  "claude_auto_route": true
 }
 ```
 
 `gateway_urls` 应列出实际使用的同一计量网关别名，示例 IP/端口需要按部署核对。`server` 自身始终属于网关，网关规则优先于外部允许列表。URL 比较以协议、主机名及端口为准，忽略 API 路径；不同端口和相似域名不匹配。地址不得包含认证信息、query 或 fragment。
 
-省略 `claude_external_urls` 时只允许官方 API；显式 `[]` 表示不允许任何外部路由。其他外部服务需明确列入允许列表。`accept_window_days` 应与站点一致；省略或设为 0 时，CLI 启动会尝试从服务端状态接口补齐。
-
-对直连官方 API 的用户执行一次：
+自动模式接受所有已识别的非本网关地址，不再需要 `claude_external_urls` 白名单。`accept_window_days` 应与站点一致；省略或设为 0 时，CLI 启动会尝试从服务端状态接口补齐。
 
 ```sh
 ~/.new-api-usage-reporter/usage-reporter \
-  --config ~/.new-api-usage-reporter/claude-config.json \
-  --configure-claude --claude-upstream https://api.anthropic.com
+  --config ~/.new-api-usage-reporter/claude-config.json --configure-claude
 ```
 
-Windows 使用相同参数调用 `usage-reporter.exe`。此命令生成独立的随机 `claude_receiver_token` 并保存到 reporter 配置，合并 Claude 用户设置中的日志 exporter，保留权限、hooks 和其他设置；首次修改前备份为 `settings.json.before-new-api-telemetry`。文件在 Unix 上按 `0600` 写入。new-api 设备上报凭据不会写入 Claude 设置。
+该命令注册当前二进制的绝对路径作为 `otelHeadersHelper`，请先放在持久安装目录。旧 `--claude-upstream` 参数仅为命令兼容保留，不再决定事件来源。首次修改前备份为 `settings.json.before-new-api-telemetry`。设备上报凭据不会写入 Claude 设置。
 
 默认设置文件为 `CLAUDE_CONFIG_DIR/settings.json`，未指定该环境变量则为 `~/.claude/settings.json`；也可显式传入 `--claude-settings /absolute/path/settings.json`。这必须是 Claude 实际使用的用户配置，不能放到仓库设置里：Claude Code 会忽略仓库级 exporter 目的地。完成后重启 CLI 会话和 VS Code 中的 Claude 会话。
 
@@ -98,11 +95,13 @@ Windows 使用相同参数调用 `usage-reporter.exe`。此命令生成独立的
 
 ## 网关过滤与路由约束
 
-**Claude 官方事件没有可靠的实际上游 URL 字段。** 本实现要求部署方通过自定义 OTel 属性 `new_api.upstream_origin` 声明有效路由；配置命令将 `--claude-upstream` 的标准化 origin 写入 `OTEL_RESOURCE_ATTRIBUTES`。接收器没有此属性、路由未获批准、计数无效或时间超窗时，会以 OTLP partial success 拒收相关记录，不上传原始内容。
+Claude 官方 `api_request` 不携带可靠的实际 URL。本实现通过官方 `otelHeadersHelper` 接口，在每个 Claude CLI/VS Code 进程中执行 `usage-reporter --claude-otel-headers`，从该进程已经合并的路由环境自动生成 `X-New-Api-Upstream-Origin` 头。helper 只输出标准化 origin，不输出 API 密钥、上报凭据或路径，也不读取会话内容。
 
-配置命令会核对 Claude 用户设置中的 `ANTHROPIC_BASE_URL`（未设置时按官方地址）及当前启动环境，发现与声明不符便拒绝修改。它不会改变 API 路由。若使用 TOKEN 网关，应先在实际 Claude 配置中设置该网关，然后以它的 URL 运行配置命令；这类事件收到后直接排除，不进入上报队列。
+普通 API 与订阅默认识别为 Anthropic；设置 `ANTHROPIC_BASE_URL` 时使用该地址，任意第三方非本网关地址均可上报。Bedrock、Vertex、Foundry 和 Claude Platform on AWS 使用其各自的 provider 开关和自定义 endpoint；没有自定义 endpoint 的云服务使用公共 provider origin 标识直连。多 provider 冲突、不合法地址、缺失 Foundry 地址或混合自定义 Mantle 路由返回 `unknown`，接收端拒收，不伪装成官方直连。
 
-声明是部署约束，不能证明每次请求的实际路由。项目配置、managed settings、启动环境、扩展专用设置和代理转发仍可能覆盖路由。**同一 telemetry 配置只能用于路由固定且已经核验的执行环境；切换直连/网关时，须同步更新声明并重启会话。** 不要给混合或不确定的路由统一打上官方 API 标签。需要混用时，应使用独立的 Claude 配置目录/执行环境，分别配好真实路由及 telemetry，或由管理员提供一致的 managed settings。Bedrock、Vertex、Foundry 的自动配置会被拒绝，需单独核验并管理其路由与 telemetry 属性。
+自动模式只相信本次导出请求的动态来源头，不回退到旧静态 `new_api.upstream_origin`，因此同一用户配置可以供不同项目/启动环境使用。缺失来源头的旧会话必须重启后才会采集。上报前仍由公共 RoutePolicy 再次排除 `server` 与 `gateway_urls`；网关优先，模型名称不参与来源判断。隐藏在第三方代理之后的网关无法仅从客户端 URL 判断，管理员需要把实际使用的别名加入排除配置。
+
+该方案要求客户端支持 `otelHeadersHelper` 和 OTLP HTTP/JSON。helper 在进程启动及客户端规定的刷新周期执行，切换 API 路由后应重启 Claude 会话，避免客户端缓存的路由与 exporter 不一致。更高优先级设置如果禁用/覆盖 telemetry 或 helper，该环境不会自动采集；不会在来源不明时猜测上报。
 
 远程 SSH、WSL、容器中的 CLI/扩展，接收器必须运行在 Claude 进程实际所在环境；`127.0.0.1` 不能跨主机使用。无法读取当前环境的 exporter/路由设置时，不要启用该环境的采集。
 
@@ -197,7 +196,12 @@ Windows 自动安装任务直接运行 GUI 子系统二进制，不启动 PowerS
 
 已通过 `go test ./... -count=1`、采集器与 CLI 的 `-race` 检查、相关包的 `go vet`；采集器已构建验证 darwin/arm64、darwin/amd64、windows/amd64、linux/amd64、linux/arm64，主服务已构建验证 Linux/amd64。
 
-另已使用本机 Claude Code CLI **2.1.236**、隔离 HOME/配置和本地模拟 Anthropic API，验证真实 CLI 的 OTLP 导出经本机接收器进入 report API：1 个真实 CLI 请求形成 1 个用量事件，输入 `100 + 200 + 300 = 600`、缓存读 `200`、输出 `40`、总量 `640`。没有调用真实模型服务，也没有读取现有 Claude 登录信息。
+另已使用真实 Claude Code CLI **2.1.236**、隔离 HOME/配置和本地模拟 Anthropic API，验证动态 helper 继承用户设置、项目覆盖及启动环境：外部地址的 1 个请求进入队列，输入 `100 + 200 + 300 = 600`、缓存读 `200`、输出 `40`、总量 `640`；同样的模型调用经本网关地址或别名时不进入队列。测试使用虚拟 API 密钥，非本地 HTTP/HTTPS 访问被阻断。可通过以下命令复现：
+
+```sh
+NEW_API_CLAUDE_TEST_BINARY=/absolute/path/to/claude \
+  go test ./pkg/usagereporter -run TestClaudeRuntimeTelemetryContract -count=1 -v
+```
 
 其余自动回归使用脱敏合成 OTLP 事件。目标 VS Code 扩展仍需在实际运行环境验收，核对 `api_request` 四类 token、子 agent 和网关/直连两路；Windows 二进制已按 GUI 子系统构建，但登录任务、周期执行和实际无闪窗体验仍需在 Windows 实机验证。开发过程不修改现有 Claude 用户设置、不使用真实模型凭据、不向生产服务上报测试用量。
 

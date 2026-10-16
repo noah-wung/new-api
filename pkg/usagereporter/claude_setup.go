@@ -6,15 +6,16 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
-// ConfigureClaudeTelemetry merges a logs-only exporter into the user settings.
-// upstream is an explicit routing assertion, never inferred from a model name.
-// This function does not change the actual Anthropic API routing configuration.
-func ConfigureClaudeTelemetry(cfg Config, path, upstream string) error {
+// ConfigureClaudeTelemetry configures a logs-only exporter and a runtime helper.
+// The helper inherits each Claude process's routing environment, including its
+// effective settings. API routing itself is never changed by installation.
+func ConfigureClaudeTelemetry(cfg Config, path, binaryPath string) error {
 	address, err := claudeListenAddress(cfg)
 	if err != nil {
 		return err
@@ -22,17 +23,17 @@ func ConfigureClaudeTelemetry(cfg Config, path, upstream string) error {
 	if len(cfg.ClaudeReceiverToken) < 32 || strings.ContainsAny(cfg.ClaudeReceiverToken, " \t\r\n,") {
 		return errors.New("configure a valid claude_receiver_token first")
 	}
-	origin, err := NormalizeUpstreamURL(upstream)
-	if err != nil || strings.ContainsAny(origin, ",= \t\r\n") {
-		return errors.New("an explicit --claude-upstream URL is required")
+	if !filepath.IsAbs(binaryPath) || strings.ContainsAny(binaryPath, "\r\n") {
+		return errors.New("Claude header helper requires an absolute binary path")
 	}
-	reporting := claudeReportingConfig(cfg)
-	policy, err := NewRoutePolicy(reporting.Server, reporting.GatewayURLs, reporting.ExternalURLs)
-	if err != nil {
-		return err
-	}
-	if _, err := policy.Allows(origin); err != nil {
-		return errors.New("declare the upstream in claude_external_urls or gateway_urls first")
+	// Claude runs commands with arguments through the platform shell. Use
+	// cmd.exe quoting on Windows and POSIX quoting elsewhere.
+	helper := "'" + strings.ReplaceAll(binaryPath, "'", "'\"'\"'") + "' --claude-otel-headers"
+	if runtime.GOOS == "windows" {
+		if strings.ContainsAny(binaryPath, "%\"") {
+			return errors.New("Claude helper path cannot contain shell expansion characters")
+		}
+		helper = "\"" + binaryPath + "\" --claude-otel-headers"
 	}
 	settings := make(map[string]json.RawMessage)
 	previous, err := os.ReadFile(path)
@@ -50,26 +51,15 @@ func ConfigureClaudeTelemetry(cfg Config, path, upstream string) error {
 			return errors.New("Claude settings env must be an object of strings")
 		}
 	}
-	// Validate known routing settings. Project/managed settings and launcher
-	// overrides still require an operator-controlled, consistent route profile.
-	configuredURL := env["ANTHROPIC_BASE_URL"]
-	if configuredURL == "" {
-		configuredURL = "https://api.anthropic.com"
-	}
-	configuredOrigin, err := NormalizeUpstreamURL(configuredURL)
-	if err != nil || configuredOrigin != origin {
-		return errors.New("declared upstream differs from Claude user settings; configure routing before telemetry")
-	}
-	if processURL := os.Getenv("ANTHROPIC_BASE_URL"); processURL != "" {
-		processOrigin, err := NormalizeUpstreamURL(processURL)
-		if err != nil || processOrigin != origin {
-			return errors.New("declared upstream differs from the launch environment")
+	if raw, exists := settings["otelHeadersHelper"]; exists {
+		var current string
+		if common.Unmarshal(raw, &current) != nil || current != "" && current != helper {
+			return errors.New("Claude already has a different otelHeadersHelper; preserve it and merge telemetry configuration explicitly")
 		}
 	}
-	for _, key := range []string{"CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"} {
-		if env[key] == "1" || os.Getenv(key) == "1" {
-			return errors.New("alternate provider routing requires an explicitly managed telemetry profile")
-		}
+	settings["otelHeadersHelper"], err = common.Marshal(helper)
+	if err != nil {
+		return err
 	}
 	resourceAttrs := make([]string, 0)
 	for _, item := range strings.Split(env["OTEL_RESOURCE_ATTRIBUTES"], ",") {
@@ -78,7 +68,6 @@ func ConfigureClaudeTelemetry(cfg Config, path, upstream string) error {
 			resourceAttrs = append(resourceAttrs, item)
 		}
 	}
-	resourceAttrs = append(resourceAttrs, ClaudeUpstreamAttribute+"="+origin)
 	env["OTEL_RESOURCE_ATTRIBUTES"] = strings.Join(resourceAttrs, ",")
 	env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
 	env["OTEL_LOGS_EXPORTER"] = "otlp"

@@ -82,10 +82,6 @@ func InstallClaudeReporter(server, token, path, settingsPath string) error {
 	if !response.Success || response.Data.Source != SourceClaudeCode || response.Data.Credential == "" {
 		return errors.New("Claude installer exchange rejected; check token expiry, source enablement and device limit")
 	}
-	upstream, err := NormalizeClaudeUpstreamURL(response.Data.UpstreamURL)
-	if err != nil {
-		return errors.New("installer exchange returned an invalid route")
-	}
 	cfg := previous
 	cfg.Server = server
 	cfg.Source = SourceClaudeCode
@@ -101,18 +97,23 @@ func InstallClaudeReporter(server, token, path, settingsPath string) error {
 		}
 		cfg.ClaudeReceiverToken = hex.EncodeToString(random[:])
 	}
-	if response.Data.UpstreamIsGateway {
-		cfg.GatewayURLs = append(cfg.GatewayURLs, upstream)
-	} else {
-		if cfg.ClaudeExternalURLs == nil {
-			cfg.ClaudeExternalURLs = []string{"https://api.anthropic.com"}
+	cfg.ClaudeAutoRoute = true
+	// A legacy, explicitly declared gateway alias remains excluded on upgrade.
+	if response.Data.UpstreamIsGateway && response.Data.UpstreamURL != "" {
+		upstream, err := NormalizeClaudeUpstreamURL(response.Data.UpstreamURL)
+		if err != nil {
+			return errors.New("installer exchange returned an invalid gateway route")
 		}
-		cfg.ClaudeExternalURLs = append(cfg.ClaudeExternalURLs, upstream)
+		cfg.GatewayURLs = append(cfg.GatewayURLs, upstream)
 	}
 	if err := SaveConfig(path, cfg); err != nil {
 		return err
 	}
-	if err := ConfigureClaudeTelemetry(cfg, settingsPath, upstream); err != nil {
+	binaryName := "usage-reporter"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+	if err := ConfigureClaudeTelemetry(cfg, settingsPath, filepath.Join(filepath.Dir(path), binaryName)); err != nil {
 		return err
 	}
 	return nil

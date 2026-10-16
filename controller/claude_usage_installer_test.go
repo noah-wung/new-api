@@ -67,7 +67,7 @@ func TestClaudeInstallerCommandDownloadsAndReinstallsWithoutReplacingCodex(t *te
 	require.NoError(t, os.WriteFile(filepath.Join(stubDir, "launchctl"), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$STUB_LOG\"\n"), 0o700))
 	var firstConfig *usagereporter.Config
 	for attempt := 0; attempt < 3; attempt++ {
-		body := `{"platform":"macos","upstream_url":"https://API.anthropic.com:443/v1","upstream_is_gateway":false}`
+		body := `{"platform":"macos"}`
 		resp, err := http.Post(server.URL+"/api/external-usage/self/claude-code-installer-command?user_id=99", "application/json", strings.NewReader(body))
 		require.NoError(t, err)
 		var commandResponse struct {
@@ -91,7 +91,7 @@ func TestClaudeInstallerCommandDownloadsAndReinstallsWithoutReplacingCodex(t *te
 		token, err := model.GetExternalUsageInstallTokenByHash(model.DB, hex.EncodeToString(digest[:]))
 		require.NoError(t, err)
 		assert.Equal(t, 7, token.UserID, "query user_id cannot override the authenticated user")
-		assert.Equal(t, "https://api.anthropic.com", token.UpstreamURL)
+		assert.Empty(t, token.UpstreamURL)
 		wrongResp, err := http.Get(server.URL + "/api/external-usage/reporter/install.sh?token=" + url.QueryEscape(rawToken))
 		require.NoError(t, err)
 		var wrong struct {
@@ -109,7 +109,7 @@ func TestClaudeInstallerCommandDownloadsAndReinstallsWithoutReplacingCodex(t *te
 		runner.Stdin = bytes.NewReader(scriptBytes)
 		runner.Env = append(os.Environ(), "HOME="+home, "CLAUDE_CONFIG_DIR="+claudeDir, "PATH="+stubDir+string(os.PathListSeparator)+os.Getenv("PATH"), "STUB_LOG="+filepath.Join(root, "launchctl.log"), "ANTHROPIC_BASE_URL=", "CLAUDE_CODE_USE_BEDROCK=", "CLAUDE_CODE_USE_VERTEX=", "CLAUDE_CODE_USE_FOUNDRY=")
 		var priorServiceCalls []byte
-		mismatchedSettings := []byte(`{"env":{"ANTHROPIC_BASE_URL":"https://gateway.other.example"}}`)
+		mismatchedSettings := []byte(`{"otelHeadersHelper":"company-helper"}`)
 		if attempt == 2 {
 			priorServiceCalls, err = os.ReadFile(filepath.Join(root, "launchctl.log"))
 			require.NoError(t, err)
@@ -117,8 +117,8 @@ func TestClaudeInstallerCommandDownloadsAndReinstallsWithoutReplacingCodex(t *te
 		}
 		output, err := runner.CombinedOutput()
 		if attempt == 2 {
-			require.Error(t, err, "a route mismatch must stop installation")
-			assert.Contains(t, string(output), "declared upstream differs")
+			require.Error(t, err, "an existing incompatible helper must stop installation")
+			assert.Contains(t, string(output), "different otelHeadersHelper")
 			serviceCalls, err := os.ReadFile(filepath.Join(root, "launchctl.log"))
 			require.NoError(t, err)
 			assert.Equal(t, priorServiceCalls, serviceCalls, "failed configuration cannot stop or replace the existing service")

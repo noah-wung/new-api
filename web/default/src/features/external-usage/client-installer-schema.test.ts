@@ -5,8 +5,6 @@ import { clientInstallerSchema } from './client-installer-schema'
 const input = {
   platform: 'windows',
   sources: ['codex', 'claude_code'],
-  upstream_url: 'https://api.anthropic.com',
-  upstream_is_gateway: false,
 }
 
 test('unified installer requires supported, unique client selections', () => {
@@ -25,25 +23,13 @@ test('unified installer requires supported, unique client selections', () => {
   }
 })
 
-test('Claude routes are required only when Claude is selected', () => {
-  for (const upstream_url of [
-    '',
-    'ftp://example.com',
-    'https://key@example.com',
-    'https://example.com?key=secret',
-    'https://example.com#key',
+test('all client selections work without upstream fields', () => {
+  for (const sources of [
+    ['codex'],
+    ['claude_code'],
+    ['codex', 'claude_code'],
   ]) {
-    assert.equal(
-      clientInstallerSchema.safeParse({ ...input, upstream_url }).success,
-      false
-    )
-    assert.equal(
-      clientInstallerSchema.safeParse({
-        ...input,
-        sources: ['codex'],
-        upstream_url,
-      }).success,
-      true
-    )
+    const values = { platform: 'windows', sources }
+    assert.deepEqual(clientInstallerSchema.parse(values), values)
   }
 })

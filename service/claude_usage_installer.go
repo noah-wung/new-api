@@ -26,9 +26,14 @@ type ConsumeClaudeInstallTokenResult struct {
 }
 
 func IssueClaudeInstallToken(userID int, upstream string, upstreamIsGateway bool) (*model.ExternalUsageInstallToken, string, error) {
-	origin, err := usagereporter.NormalizeClaudeUpstreamURL(upstream)
-	if err != nil || len(origin) > 512 {
-		return nil, "", errors.New("invalid Claude upstream URL")
+	// Keep optional legacy route fields for old callers and gateway aliases.
+	origin := ""
+	if strings.TrimSpace(upstream) != "" {
+		var err error
+		origin, err = usagereporter.NormalizeClaudeUpstreamURL(upstream)
+		if err != nil || len(origin) > 512 {
+			return nil, "", errors.New("invalid Claude upstream URL")
+		}
 	}
 	if err := ValidateExternalUsageSourceEnabled(model.ExternalUsageSourceClaudeCode); err != nil {
 		return nil, "", err

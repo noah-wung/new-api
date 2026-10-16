@@ -29,6 +29,7 @@ type Config struct {
 	CodexConfigPath        string   `json:"codex_config_path,omitempty"`
 	ClaudeListen           string   `json:"claude_listen,omitempty"`
 	ClaudeReceiverToken    string   `json:"claude_receiver_token,omitempty"`
+	ClaudeAutoRoute        bool     `json:"claude_auto_route,omitempty"`
 	ClaudeExternalURLs     []string `json:"claude_external_urls"`
 }
 
