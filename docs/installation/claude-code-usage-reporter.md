@@ -33,7 +33,7 @@
 
 来源未由管理员启用时，该客户端选项会禁用；其他已启用的客户端仍可安装。管理员查看其他用户时不能代该用户生成命令；需以目标用户登录。令牌绑定登录用户与客户端来源，不能兑换为 Codex 凭据。
 
-自动安装路径为 `~/.new-api-usage-reporter/claude/`，包含独立二进制、`config.json` 和状态文件；不会覆盖 Codex 的配置或后台任务。macOS 注册 `pro.newapi.usage-reporter.claude` LaunchAgent，Windows 注册 `new-api-claude-usage-reporter` 当前用户登录任务。相同账户、相同设备的有效旧上报凭据会复用，保留本机 token、过滤策略与待上报队列；来源权限不一致、设备被撤销或切换账户时重新签发，并隔离旧队列。
+普通安装路径为 `~/.new-api-usage-reporter/claude/`，包含独立二进制、`config.json` 和状态文件；签名托管安装共用 `~/.new-api-usage-reporter/runtime/releases/` 的版本二进制，配置和队列仍留在 `claude/`。不会覆盖 Codex 的配置或后台任务。macOS 注册 `pro.newapi.usage-reporter.claude` LaunchAgent，Windows 注册 `new-api-claude-usage-reporter` 当前用户登录任务。相同账户、相同设备的有效旧上报凭据会复用，保留本机 token、过滤策略与待上报队列；来源权限不一致、设备被撤销或切换账户时重新签发，并隔离旧队列。
 
 安装脚本保留 API 路由和其他用户设置，备份首次修改前的设置。如已存在其他 `otelHeadersHelper`，安装会提示冲突并保留原设置；应先合并已有遥测需求。
 
@@ -100,6 +100,8 @@ Claude 官方 `api_request` 不携带可靠的实际 URL。本实现通过官方
 普通 API 与订阅默认识别为 Anthropic；设置 `ANTHROPIC_BASE_URL` 时使用该地址，任意第三方非本网关地址均可上报。Bedrock、Vertex、Foundry 和 Claude Platform on AWS 使用其各自的 provider 开关和自定义 endpoint；没有自定义 endpoint 的云服务使用公共 provider origin 标识直连。多 provider 冲突、不合法地址、缺失 Foundry 地址或混合自定义 Mantle 路由返回 `unknown`，接收端拒收，不伪装成官方直连。
 
 自动模式只相信本次导出请求的动态来源头，不回退到旧静态 `new_api.upstream_origin`，因此同一用户配置可以供不同项目/启动环境使用。缺失来源头的旧会话必须重启后才会采集。上报前仍由公共 RoutePolicy 再次排除 `server` 与 `gateway_urls`；网关优先，模型名称不参与来源判断。隐藏在第三方代理之后的网关无法仅从客户端 URL 判断，管理员需要把实际使用的别名加入排除配置。
+
+签名托管时，helper 指向 `runtime/launcher/` 的稳定程序，并通过 `--runtime` 分发到已经提交的当前版本；提交和回退都不修改用户 settings。普通安装直接调用固定二进制。
 
 该方案要求客户端支持 `otelHeadersHelper` 和 OTLP HTTP/JSON。helper 在进程启动及客户端规定的刷新周期执行，切换 API 路由后应重启 Claude 会话，避免客户端缓存的路由与 exporter 不一致。更高优先级设置如果禁用/覆盖 telemetry 或 helper，该环境不会自动采集；不会在来源不明时猜测上报。
 

@@ -5,6 +5,8 @@ export const clientCollectorSources = ['codex', 'claude_code'] as const
 
 export const clientInstallerSchema = z.object({
   platform: claudeInstallerSchema.shape.platform,
+  auto_update: z.boolean().optional(),
+  managed_install: z.boolean().optional(),
   sources: z
     .array(z.enum(clientCollectorSources))
     .min(1)

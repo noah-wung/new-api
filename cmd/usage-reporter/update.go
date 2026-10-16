@@ -112,6 +112,19 @@ func installClients(server, codexToken, claudeToken, keysPath, catalogPath strin
 			return errors.New("mixed gateway installations require manual migration")
 		}
 	}
+	helper := ""
+	settingsPath := ""
+	if claudeToken != "" {
+		helper, e = reporterupdate.EnsureLauncher(m.Root, self, a)
+		if e != nil {
+			return e
+		}
+		dir := os.Getenv("CLAUDE_CONFIG_DIR")
+		if dir == "" {
+			dir = filepath.Join(home, ".claude")
+		}
+		settingsPath = filepath.Join(dir, "settings.json")
+	}
 	for _, p := range profiles {
 		if e = reporterupdate.SecureDir(filepath.Dir(p.Config)); e != nil {
 			return e
@@ -119,11 +132,7 @@ func installClients(server, codexToken, claudeToken, keysPath, catalogPath strin
 		if p.Source == usagereporter.SourceCodex {
 			e = usagereporter.InstallCodexReporter(server, codexToken, p.Config)
 		} else {
-			dir := os.Getenv("CLAUDE_CONFIG_DIR")
-			if dir == "" {
-				dir = filepath.Join(home, ".claude")
-			}
-			e = usagereporter.InstallClaudeReporter(server, claudeToken, p.Config, filepath.Join(dir, "settings.json"))
+			e = usagereporter.InstallClaudeReporter(server, claudeToken, p.Config, settingsPath, usagereporter.ClaudeInstallOptions{HelperBinary: helper, RuntimeDir: m.Root, DeferTelemetry: true})
 		}
 		if e != nil {
 			return e
@@ -135,6 +144,20 @@ func installClients(server, codexToken, claudeToken, keysPath, catalogPath strin
 	}
 	if e = m.Apply(context.Background(), id); e != nil {
 		return e
+	}
+	if claudeToken != "" {
+		configPath := filepath.Join(root, "claude", "config.json")
+		cfg, err := usagereporter.LoadConfig(configPath)
+		if err != nil {
+			return err
+		}
+		name := "usage-reporter"
+		if runtime.GOOS == "windows" {
+			name += ".exe"
+		}
+		if err := usagereporter.ConfigureClaudeTelemetry(*cfg, settingsPath, helper, usagereporter.ClaudeTelemetryOptions{RuntimeDir: m.Root, LegacyBinary: filepath.Join(filepath.Dir(configPath), name)}); err != nil {
+			return err
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

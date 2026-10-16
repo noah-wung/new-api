@@ -36,7 +36,12 @@ export function ReporterReleaseCard() {
       return activateReporterRelease(releaseId.trim())
     },
     onSuccess: () =>
-      client.invalidateQueries({ queryKey: ['reporter-releases'] }),
+      Promise.all([
+        client.invalidateQueries({ queryKey: ['reporter-releases'] }),
+        client.invalidateQueries({
+          queryKey: ['external-usage-client-installer-options'],
+        }),
+      ]),
   })
   return (
     <Card>

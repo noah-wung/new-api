@@ -33,3 +33,10 @@ test('all client selections work without upstream fields', () => {
     assert.deepEqual(clientInstallerSchema.parse(values), values)
   }
 })
+
+test('signed installs preserve explicit automatic update choices', () => {
+  for (const auto_update of [true, false]) {
+    const values = { ...input, managed_install: true, auto_update }
+    assert.deepEqual(clientInstallerSchema.parse(values), values)
+  }
+})

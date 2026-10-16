@@ -196,7 +196,7 @@ func TestClientInstallerManualModeNeedsNoSigningSetup(t *testing.T) {
 		response := decodeAPIResponse(t, recorder)
 		if automatic == true {
 			assert.False(t, response.Success)
-			assert.Contains(t, response.Message, "Automatic upgrades are disabled")
+			assert.Contains(t, response.Message, "Automatic updates require HTTPS")
 			continue
 		}
 		require.True(t, response.Success, response.Message)

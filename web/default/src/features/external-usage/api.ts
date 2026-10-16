@@ -226,6 +226,13 @@ export async function searchExternalUsageTargetUsers(keyword: string) {
   return (res.data?.items ?? []) as User[]
 }
 
+export async function getExternalUsageClientInstallerOptions(): Promise<{
+  automatic_updates_available: boolean
+}> {
+  const res = await api.get('/api/external-usage/self/client-installer-options')
+  return res.data.data
+}
+
 export async function createExternalUsageClientInstallerCommand(
   payload: ClientInstallerInput
 ): Promise<{ success: boolean; data?: ExternalUsageInstallerCommandData }> {

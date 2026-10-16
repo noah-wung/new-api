@@ -11,6 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func GetExternalUsageSelfClientInstallerOptions(c *gin.Context) {
+	if !ensureExternalUsageEnabled(c) {
+		return
+	}
+	common.ApiSuccess(c, gin.H{"automatic_updates_available": service.SignedClientInstallerAvailable(resolveExternalUsageInstallerServiceURL(c))})
+}
+
 func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 	if !ensureExternalUsageEnabled(c) {
 		return
@@ -21,6 +28,7 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		UpstreamURL       string   `json:"upstream_url"`
 		UpstreamIsGateway bool     `json:"upstream_is_gateway"`
 		AutoUpdate        *bool    `json:"auto_update"`
+		ManagedInstall    bool     `json:"managed_install"`
 	}
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		common.ApiErrorMsg(c, "invalid request body")
@@ -46,9 +54,14 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		}
 	}
 	var tokens service.ClientInstallTokens
-	if req.AutoUpdate != nil && *req.AutoUpdate {
-		common.ApiErrorMsg(c, "Automatic upgrades are disabled. Generate a new command for manual upgrades.")
-		return
+	params := service.BuildInstallScriptParams{Platform: req.Platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c)}
+	if req.ManagedInstall || req.AutoUpdate != nil && *req.AutoUpdate {
+		params.Managed = true
+		params.AutoUpdate = req.AutoUpdate != nil && *req.AutoUpdate
+		if !service.SignedClientInstallerAvailable(params.ServiceURL) {
+			common.ApiErrorMsg(c, "Automatic updates require HTTPS and an active signed release.")
+			return
+		}
 	}
 	var expiresAt int64
 	if selected[model.ExternalUsageSourceClaudeCode] {
@@ -70,9 +83,7 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 			expiresAt = token.ExpiresAt
 		}
 	}
-	command, err := service.BuildClientInstallerCommand(service.BuildInstallScriptParams{
-		Platform: req.Platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c),
-	}, tokens)
+	command, err := service.BuildClientInstallerCommand(params, tokens)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -84,8 +95,9 @@ func GetExternalUsageClientInstallScript(c *gin.Context) {
 	if !ensureExternalUsageEnabled(c) {
 		return
 	}
-	if c.Query("auto_update") == "true" {
-		common.ApiErrorMsg(c, "Automatic upgrades are disabled. Generate a new command for manual upgrades.")
+	managed := c.Query("auto_update") != ""
+	if managed && c.Query("auto_update") != "true" && c.Query("auto_update") != "false" {
+		common.ApiErrorMsg(c, "invalid automatic update option")
 		return
 	}
 	tokens := service.ClientInstallTokens{Codex: c.Query("codex_token"), Claude: c.Query("claude_token")}
@@ -98,6 +110,7 @@ func GetExternalUsageClientInstallScript(c *gin.Context) {
 		platform = service.ExternalUsageInstallerPlatformWindows
 	}
 	script, err := service.BuildClientInstallScript(service.BuildInstallScriptParams{
+		Managed: managed, AutoUpdate: c.Query("auto_update") == "true",
 		Platform: platform, ServiceURL: resolveExternalUsageInstallerServiceURL(c),
 		AcceptWindowDays: external_usage_setting.GetSetting().AcceptWindowDays,
 	}, tokens)

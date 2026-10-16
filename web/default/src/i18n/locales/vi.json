@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Automatically check and silently update collectors": "Tự động kiểm tra và nâng cấp trình thu thập trong nền",
+    "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "Kiểm tra hằng ngày. Bản cập nhật được xác minh và cài đặt trong nền; nếu thất bại, phiên bản trước sẽ được khôi phục.",
+    "Existing devices must run the signed installation command once to enable automatic updates.": "Thiết bị hiện có cần chạy lệnh cài đặt có chữ ký một lần để bật nâng cấp tự động.",
+    "Automatic updates require HTTPS and an active signed release. Ordinary installation remains available with daily manual-update notifications.": "Nâng cấp tự động cần HTTPS và bản phát hành có chữ ký đã kích hoạt. Vẫn có thể cài đặt thông thường với thông báo nâng cấp thủ công hằng ngày.",
+    "Automatic update availability could not be checked. Ordinary installation remains available.": "Không thể kiểm tra khả năng nâng cấp tự động. Vẫn có thể cài đặt thông thường.",
     "Claude Code detects its API address automatically. Non-gateway usage is reported; this gateway and its configured aliases are excluded. Restart Claude Code CLI and VS Code sessions after installation.": "Claude Code tự động nhận diện địa chỉ API. Báo cáo mức sử dụng ngoài cổng này; loại trừ cổng này và các địa chỉ thay thế đã cấu hình. Khởi động lại phiên CLI và VS Code sau khi cài đặt.",
     "360": "360",
     "1000": "1000",

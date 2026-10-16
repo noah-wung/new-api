@@ -309,6 +309,7 @@ func SetApiRouter(router *gin.Engine) {
 			externalUsageSelfRoute.Use(middleware.UserAuth())
 			{
 				externalUsageSelfRoute.GET("/reporter-status", controller.ListSelfReporterStatuses)
+				externalUsageSelfRoute.GET("/client-installer-options", controller.GetExternalUsageSelfClientInstallerOptions)
 				externalUsageSelfRoute.POST("/client-installer-command", controller.CreateExternalUsageSelfClientInstallerCommand)
 				externalUsageSelfRoute.POST("/codex-installer-command", controller.CreateExternalUsageSelfCodexInstallerCommand)
 				externalUsageSelfRoute.POST("/claude-code-installer-command", controller.CreateExternalUsageSelfClaudeInstallerCommand)

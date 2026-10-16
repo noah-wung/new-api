@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -66,6 +67,15 @@ func runReporter() (runErr error) {
 		return err
 	}
 	if *claudeHeaders {
+		if *runtimePath != "" {
+			binary, err := reporterupdate.CurrentBinary(*runtimePath)
+			if err != nil {
+				return err
+			}
+			command := exec.Command(binary, "--claude-otel-headers")
+			command.Stdout, command.Stderr = os.Stdout, os.Stderr
+			return command.Run()
+		}
 		content, err := common.Marshal(usagereporter.ClaudeTelemetryHeaders())
 		if err != nil {
 			return err
@@ -113,6 +123,17 @@ func runReporter() (runErr error) {
 		path, err = filepath.Abs(path)
 		if err != nil {
 			return err
+		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		owned, err := reporterupdate.ManagedProfile(filepath.Join(home, ".new-api-usage-reporter", "runtime"), path)
+		if err != nil {
+			return err
+		}
+		if owned {
+			return errors.New("this collector is managed; use a signed installation command or --auto-update off instead of a legacy installer")
 		}
 		if *installCodex {
 			return usagereporter.InstallCodexReporter(*server, *installToken, path)

@@ -1,10 +1,13 @@
 package reporterupdate
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/usagereporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,14 +118,33 @@ func TestNativeDarwinSignedUpdateKeepsStateAndCompletesCollectorRun(t *testing.T
 	state := filepath.Join(root, "state.json")
 	require.NoError(t, Save(config, map[string]any{"server": server.URL, "source": "codex", "credential": "fixture-credential", "codex_dir": sessions, "state_path": state, "accept_window_days": 90, "gateway_urls": []string{"https://gateway.example"}}))
 	profile := Profile{Source: "codex", Config: config, TaskName: "test-codex"}
+	port, e := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, e)
+	listen := port.Addr().String()
+	require.NoError(t, port.Close())
+	claudeConfig := filepath.Join(root, "claude", "config.json")
+	claudeState := filepath.Join(root, "claude", "state.json")
+	require.NoError(t, SecureDir(filepath.Dir(claudeConfig)))
+	claude := usagereporter.Config{Server: server.URL, Source: usagereporter.SourceClaudeCode, Credential: "fixture-claude", StatePath: claudeState, AcceptWindowDays: 90, ClaudeListen: listen, ClaudeReceiverToken: strings.Repeat("a", 64), ClaudeAutoRoute: true, GatewayURLs: []string{"https://gateway.example"}}
+	require.NoError(t, usagereporter.SaveConfig(claudeConfig, claude))
+	claudeProfile := Profile{Source: "claude_code", Config: claudeConfig, TaskName: "test-claude", Streaming: true}
 	old := Release{ID: "native-old", Version: "1.0.0", Binary: filepath.Join(root, "releases", "native-old", m.Target, "usage-reporter"), SHA256: Digest(oldBytes)}
 	task, e := p.Definition(profile.TaskName, old.Binary, workerArguments(profile, "old-transaction"), 5, false)
 	require.NoError(t, e)
 	require.NoError(t, p.Install(task))
+	claudeTask, e := p.Definition(claudeProfile.TaskName, old.Binary, workerArguments(claudeProfile, "old-transaction"), 0, true)
+	require.NoError(t, e)
+	require.NoError(t, p.Install(claudeTask))
 	u, e := p.Definition(updaterTask, old.Binary, []string{"--update-check", "--runtime", root}, 15, false)
 	require.NoError(t, e)
 	require.NoError(t, p.Install(u))
-	require.NoError(t, Save(filepath.Join(root, "installation.json"), Installation{Schema: 1, ID: "native-install", Server: server.URL, Keys: keys, AutoUpdate: true, Profiles: []Profile{profile}, Current: old}))
+	require.NoError(t, Save(filepath.Join(root, "installation.json"), Installation{Schema: 1, ID: "native-install", Server: server.URL, Keys: keys, AutoUpdate: true, Profiles: []Profile{profile, claudeProfile}, Current: old}))
+	launcher, e := EnsureLauncher(root, old.Binary, Artifact{Target: m.Target, SHA256: Digest(oldBytes), Size: int64(len(oldBytes))})
+	require.NoError(t, e)
+	settings := filepath.Join(root, "settings.json")
+	require.NoError(t, usagereporter.ConfigureClaudeTelemetry(claude, settings, launcher, usagereporter.ClaudeTelemetryOptions{RuntimeDir: root}))
+	originalSettings, e := os.ReadFile(settings)
+	require.NoError(t, e)
 	id, e := m.CheckAndPrepare(context.Background(), true)
 	require.NoError(t, e)
 	require.NotEmpty(t, id)
@@ -137,4 +161,29 @@ func TestNativeDarwinSignedUpdateKeepsStateAndCompletesCollectorRun(t *testing.T
 	require.NoError(t, Load(config, &cfg))
 	assert.Equal(t, "fixture-credential", cfg["credential"])
 	assert.Equal(t, state, cfg["state_path"])
+	afterSettings, e := os.ReadFile(settings)
+	require.NoError(t, e)
+	assert.Equal(t, originalSettings, afterSettings, "updates must not rewrite Claude settings")
+	command := exec.Command(launcher, "--claude-otel-headers", "--runtime", root)
+	command.Env = append(os.Environ(), "ANTHROPIC_BASE_URL=https://third.example/v1")
+	headers, e := command.Output()
+	require.NoError(t, e)
+	var route map[string]string
+	require.NoError(t, common.Unmarshal(headers, &route))
+	assert.Equal(t, "https://third.example", route[usagereporter.ClaudeOriginHeader])
+	// Exercise the real updated receiver, not only lifecycle health receipts.
+	body := fmt.Sprintf(`{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"eventName":"claude_code.api_request","timeUnixNano":"%d","attributes":[{"key":"model","value":{"stringValue":"claude-fixture"}},{"key":"request_id","value":{"stringValue":"native-update-request"}},{"key":"input_tokens","value":{"intValue":"100"}},{"key":"output_tokens","value":{"intValue":"40"}}]}]}]}]}`, time.Now().UnixNano())
+	request, e := http.NewRequest(http.MethodPost, "http://"+listen+"/v1/logs", bytes.NewBufferString(body))
+	require.NoError(t, e)
+	request.Header.Set("Authorization", "Bearer "+claude.ClaudeReceiverToken)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(usagereporter.ClaudeOriginHeader, route[usagereporter.ClaudeOriginHeader])
+	response, e := http.DefaultClient.Do(request)
+	require.NoError(t, e)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.NoError(t, response.Body.Close())
+	queue := filepath.Join(claudeState+".claude-queue", Digest([]byte(server.URL+"\x00fixture-claude")))
+	files, e := os.ReadDir(queue)
+	require.NoError(t, e)
+	assert.Len(t, files, 1, "updated Claude process must persist the external event")
 }

@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Automatically check and silently update collectors": "Автоматически проверять и устанавливать обновления сборщиков",
+    "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "Проверка выполняется ежедневно. Обновления проверяются и устанавливаются в фоне; при сбое восстанавливается предыдущая версия.",
+    "Existing devices must run the signed installation command once to enable automatic updates.": "Для включения автоматических обновлений на существующих устройствах нужно один раз выполнить команду установки подписанной версии.",
+    "Automatic updates require HTTPS and an active signed release. Ordinary installation remains available with daily manual-update notifications.": "Для автоматических обновлений нужны HTTPS и активная подписанная версия. Обычная установка доступна с ежедневными уведомлениями о ручном обновлении.",
+    "Automatic update availability could not be checked. Ordinary installation remains available.": "Не удалось проверить доступность автоматических обновлений. Обычная установка остаётся доступной.",
     "Claude Code detects its API address automatically. Non-gateway usage is reported; this gateway and its configured aliases are excluded. Restart Claude Code CLI and VS Code sessions after installation.": "Claude Code автоматически определяет адрес API. Передаются данные об использовании вне этого шлюза; сам шлюз и его настроенные псевдонимы исключаются. После установки перезапустите сеансы CLI и VS Code.",
     "360": "360",
     "1000": "1000",

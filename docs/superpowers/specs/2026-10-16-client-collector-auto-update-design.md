@@ -1,6 +1,6 @@
 # 客户端采集器自动检查与静默升级设计
 
-状态：签名升级模块已实施，但用户随后决定暂不配置自动升级，当前改用每日检查、通知用户手动升级。普通安装无需签名配置；以下保留原设计作为后续启用参考。当前行为与验证范围见 [更新说明](../../installation/usage-reporter-updates.md)；本设计不代表已经生产部署。
+状态：当前分支已恢复签名托管安装和自动升级入口，支持未配置签名时的普通安装。密钥采用 age 密文随源码管理，口令独立保存。用户明确要求暂不发布到服务器；本文不代表已经生产启用。实现与验证范围见 [更新说明](../../installation/usage-reporter-updates.md)。
 
 基线：`codex/claude-code-usage-reporter`，`949da3b1b`。
 
@@ -70,6 +70,7 @@ Codex、Claude Code 共用一套版本检查、下载、验证、切换、恢复
   claude/                             # Claude：保留配置、state 和 .claude-queue
   runtime/
     releases/<release_id>/<target>/usage-reporter[.exe]
+    launcher/usage-reporter[.exe]       # Claude 稳定入口，分发到已提交版本
     staging/<transaction_id>/
     installation.json                 # 网关绑定、随机安装 ID、已安装来源、自动更新开关
     update-state.json                 # 当前/上一版本、下次检查、错误代码、发布序号

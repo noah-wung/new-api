@@ -3,7 +3,6 @@ package reporterupdate
 import (
 	"context"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -74,32 +73,7 @@ func (m *Manager) Enroll(ctx context.Context, server string, keys TrustKeys, cat
 	}
 	name, _ := TargetName(a.Target)
 	dest := filepath.Join(m.Root, "releases", c.ReleaseID, a.Target, name)
-	if e = SecureDir(filepath.Dir(dest)); e != nil {
-		return "", e
-	}
-	if _, e = os.Stat(dest); os.IsNotExist(e) {
-		src, e := os.Open(self)
-		if e != nil {
-			return "", e
-		}
-		defer src.Close()
-		f, e := os.OpenFile(dest, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700)
-		if e != nil {
-			return "", e
-		}
-		_, e = io.Copy(f, src)
-		if e == nil {
-			e = f.Sync()
-		}
-		ce := f.Close()
-		if e != nil {
-			return "", e
-		}
-		if ce != nil {
-			return "", ce
-		}
-	}
-	if e = verifyFile(dest, a); e != nil {
+	if e = stageVerifiedBinary(self, dest, a); e != nil {
 		return "", e
 	}
 	i, s, e := m.read()

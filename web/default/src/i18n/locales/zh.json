@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Automatically check and silently update collectors": "自动检查并静默升级采集器",
+    "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "每天检查更新。新版通过验证后在后台安装，升级失败时恢复上一版本。",
+    "Existing devices must run the signed installation command once to enable automatic updates.": "现有设备需执行一次签名安装命令，之后即可自动升级。",
+    "Automatic updates require HTTPS and an active signed release. Ordinary installation remains available with daily manual-update notifications.": "自动升级需要 HTTPS 和已激活的签名版本。仍可普通安装，每天检查并提示手动升级。",
+    "Automatic update availability could not be checked. Ordinary installation remains available.": "暂时无法检查自动升级是否可用，仍可普通安装。",
     "Claude Code detects its API address automatically. Non-gateway usage is reported; this gateway and its configured aliases are excluded. Restart Claude Code CLI and VS Code sessions after installation.": "Claude Code 自动识别 API 地址。上报非本网关用量，排除本网关及已配置的别名地址。安装后请重启 Claude Code 命令行和 VS Code 会话。",
     "360": "360",
     "1000": "1000",

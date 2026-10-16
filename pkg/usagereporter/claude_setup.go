@@ -12,10 +12,49 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
+type ClaudeTelemetryOptions struct {
+	RuntimeDir   string
+	LegacyBinary string
+	ValidateOnly bool
+}
+
+func claudeTelemetryCommand(binaryPath, runtimeDir string) (string, error) {
+	if binaryPath == "" {
+		return "", errors.New("Claude helper requires an absolute binary path")
+	}
+	args := []string{binaryPath, "--claude-otel-headers"}
+	for _, path := range []string{binaryPath, runtimeDir} {
+		if path != "" && (!filepath.IsAbs(path) || strings.ContainsAny(path, "\r\n")) {
+			return "", errors.New("Claude helper requires absolute paths")
+		}
+	}
+	if runtimeDir != "" {
+		args = append(args, "--runtime", runtimeDir)
+	}
+	for index, value := range args {
+		if value == "--claude-otel-headers" || value == "--runtime" {
+			continue
+		}
+		if runtime.GOOS == "windows" {
+			if strings.ContainsAny(value, "%\"") {
+				return "", errors.New("Claude helper path cannot contain shell expansion characters")
+			}
+			args[index] = "\"" + value + "\""
+		} else {
+			args[index] = "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+		}
+	}
+	return strings.Join(args, " "), nil
+}
+
 // ConfigureClaudeTelemetry configures a logs-only exporter and a runtime helper.
 // The helper inherits each Claude process's routing environment, including its
 // effective settings. API routing itself is never changed by installation.
-func ConfigureClaudeTelemetry(cfg Config, path, binaryPath string) error {
+func ConfigureClaudeTelemetry(cfg Config, path, binaryPath string, options ...ClaudeTelemetryOptions) error {
+	var option ClaudeTelemetryOptions
+	if len(options) > 0 {
+		option = options[0]
+	}
 	address, err := claudeListenAddress(cfg)
 	if err != nil {
 		return err
@@ -23,17 +62,16 @@ func ConfigureClaudeTelemetry(cfg Config, path, binaryPath string) error {
 	if len(cfg.ClaudeReceiverToken) < 32 || strings.ContainsAny(cfg.ClaudeReceiverToken, " \t\r\n,") {
 		return errors.New("configure a valid claude_receiver_token first")
 	}
-	if !filepath.IsAbs(binaryPath) || strings.ContainsAny(binaryPath, "\r\n") {
-		return errors.New("Claude header helper requires an absolute binary path")
+	helper, err := claudeTelemetryCommand(binaryPath, option.RuntimeDir)
+	if err != nil {
+		return err
 	}
-	// Claude runs commands with arguments through the platform shell. Use
-	// cmd.exe quoting on Windows and POSIX quoting elsewhere.
-	helper := "'" + strings.ReplaceAll(binaryPath, "'", "'\"'\"'") + "' --claude-otel-headers"
-	if runtime.GOOS == "windows" {
-		if strings.ContainsAny(binaryPath, "%\"") {
-			return errors.New("Claude helper path cannot contain shell expansion characters")
+	legacy := ""
+	if option.LegacyBinary != "" {
+		legacy, err = claudeTelemetryCommand(option.LegacyBinary, "")
+		if err != nil {
+			return err
 		}
-		helper = "\"" + binaryPath + "\" --claude-otel-headers"
 	}
 	settings := make(map[string]json.RawMessage)
 	previous, err := os.ReadFile(path)
@@ -53,7 +91,7 @@ func ConfigureClaudeTelemetry(cfg Config, path, binaryPath string) error {
 	}
 	if raw, exists := settings["otelHeadersHelper"]; exists {
 		var current string
-		if common.Unmarshal(raw, &current) != nil || current != "" && current != helper {
+		if common.Unmarshal(raw, &current) != nil || current != "" && current != helper && current != legacy {
 			return errors.New("Claude already has a different otelHeadersHelper; preserve it and merge telemetry configuration explicitly")
 		}
 	}
@@ -87,6 +125,9 @@ func ConfigureClaudeTelemetry(cfg Config, path, binaryPath string) error {
 	content, err := common.Marshal(settings)
 	if err != nil {
 		return err
+	}
+	if option.ValidateOnly {
+		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err

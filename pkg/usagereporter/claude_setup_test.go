@@ -81,3 +81,39 @@ func TestConfigureClaudeTelemetryPreservesIncompatibleSettings(t *testing.T) {
 		assert.Equal(t, settings, string(content))
 	}
 }
+
+func TestClaudeManagedHelperMigrationDefersSettingsUntilCommit(t *testing.T) {
+	cfg := claudeReceiverConfig(t, "https://token.example")
+	root := t.TempDir()
+	settings := filepath.Join(root, "settings.json")
+	legacy := filepath.Join(root, "claude", "usage-reporter")
+	stable := filepath.Join(root, "runtime", "launcher", "usage-reporter")
+	old := `{"env":{"ANTHROPIC_BASE_URL":"https://third.example","OTEL_RESOURCE_ATTRIBUTES":"new_api.upstream_origin=https://old.example"},"otelHeadersHelper":`
+	command, err := claudeTelemetryCommand(legacy, "")
+	require.NoError(t, err)
+	encoded, err := common.Marshal(command)
+	require.NoError(t, err)
+	old += string(encoded) + `}`
+	require.NoError(t, os.WriteFile(settings, []byte(old), 0o600))
+	options := ClaudeTelemetryOptions{RuntimeDir: filepath.Join(root, "runtime"), LegacyBinary: legacy, ValidateOnly: true}
+	require.NoError(t, ConfigureClaudeTelemetry(cfg, settings, stable, options))
+	before, err := os.ReadFile(settings)
+	require.NoError(t, err)
+	assert.Equal(t, old, string(before), "failed/rolled-back enrollment must leave legacy telemetry working")
+	options.ValidateOnly = false
+	require.NoError(t, ConfigureClaudeTelemetry(cfg, settings, stable, options))
+	for count := 0; count < 2; count++ {
+		require.NoError(t, ConfigureClaudeTelemetry(cfg, settings, stable, options))
+	}
+	content, err := os.ReadFile(settings)
+	require.NoError(t, err)
+	var result struct {
+		Helper string            `json:"otelHeadersHelper"`
+		Env    map[string]string `json:"env"`
+	}
+	require.NoError(t, common.Unmarshal(content, &result))
+	assert.Contains(t, result.Helper, stable)
+	assert.Contains(t, result.Helper, "--runtime")
+	assert.Equal(t, "https://third.example", result.Env["ANTHROPIC_BASE_URL"])
+	assert.NotContains(t, result.Env["OTEL_RESOURCE_ATTRIBUTES"], ClaudeUpstreamAttribute)
+}

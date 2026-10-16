@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Download04Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
 import { formatTimestamp } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,10 @@ import {
 } from '@/components/ui/field'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { CopyButton } from '@/components/copy-button'
-import { createExternalUsageClientInstallerCommand } from './api'
+import {
+  createExternalUsageClientInstallerCommand,
+  getExternalUsageClientInstallerOptions,
+} from './api'
 import {
   clientInstallerSchema,
   clientCollectorSources,
@@ -48,11 +52,21 @@ export function ClientInstallerCard(props: {
     defaultValues: {
       platform: 'macos',
       sources: availableSources,
+      auto_update: true,
     },
   })
   const sources = useWatch({ control: form.control, name: 'sources' })
   const includeClaude = sources.includes('claude_code')
   const platform = useWatch({ control: form.control, name: 'platform' })
+  const autoUpdate = useWatch({ control: form.control, name: 'auto_update' })
+  const userId = useAuthStore((state) => state.auth.user?.id)
+  const options = useQuery({
+    queryKey: ['external-usage-client-installer-options', userId],
+    queryFn: getExternalUsageClientInstallerOptions,
+    enabled: props.canRequest && availableSources.length > 0,
+    staleTime: 30_000,
+  })
+  const signedReady = options.data?.automatic_updates_available === true
   const [command, setCommand] = useState('')
   const [expiresAt, setExpiresAt] = useState<number | null>(null)
   const requestGeneration = useRef(0)
@@ -68,19 +82,21 @@ export function ClientInstallerCard(props: {
   }
 
   useEffect(() => {
-    if (!allowed) {
-      requestGeneration.current++
-      setCommand('')
-      setExpiresAt(null)
-    }
-  }, [allowed])
+    requestGeneration.current++
+    setCommand('')
+    setExpiresAt(null)
+  }, [allowed, signedReady])
 
   async function generateCommand(values: ClientInstallerInput) {
     if (!allowed) return
     invalidateCommand()
     const generation = requestGeneration.current
     try {
-      const result = await mutation.mutateAsync(values)
+      const result = await mutation.mutateAsync(
+        signedReady
+          ? { ...values, managed_install: true }
+          : { platform: values.platform, sources: values.sources }
+      )
       if (generation === requestGeneration.current && result.success) {
         setCommand(result.data?.command ?? '')
         setExpiresAt(normalizeInstallerCommandExpiry(result.data?.expires_at))
@@ -183,16 +199,49 @@ export function ClientInstallerCard(props: {
                 <FieldError>{t('Select at least one client.')}</FieldError>
               ) : null}
             </FieldSet>
-            <FieldDescription>
-              {t(
-                'Checks daily and notifies you when a new version is available. Upgrade manually using a new installation command from this page.'
-              )}
-            </FieldDescription>
-            <FieldDescription>
-              {t(
-                'Existing devices must run the new installation command once to enable update notifications. No automatic downloads or installation.'
-              )}
-            </FieldDescription>
+            {signedReady ? (
+              <>
+                <Field orientation='horizontal' data-disabled={!allowed}>
+                  <Checkbox
+                    id='collector-auto-update'
+                    checked={autoUpdate === true}
+                    disabled={!allowed}
+                    onCheckedChange={(checked) => {
+                      invalidateCommand()
+                      form.setValue('auto_update', checked)
+                    }}
+                  />
+                  <FieldLabel htmlFor='collector-auto-update'>
+                    {t('Automatically check and silently update collectors')}
+                  </FieldLabel>
+                </Field>
+                <FieldDescription>
+                  {t(
+                    'Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.'
+                  )}
+                </FieldDescription>
+                <FieldDescription>
+                  {t(
+                    'Existing devices must run the signed installation command once to enable automatic updates.'
+                  )}
+                </FieldDescription>
+              </>
+            ) : (
+              <FieldDescription>
+                {t(
+                  'Automatic updates require HTTPS and an active signed release. Ordinary installation remains available with daily manual-update notifications.'
+                )}
+              </FieldDescription>
+            )}
+            {options.isError ? (
+              <Alert>
+                <AlertDescription>
+                  {t(
+                    'Automatic update availability could not be checked. Ordinary installation remains available.'
+                  )}
+                </AlertDescription>
+              </Alert>
+            ) : null}
             {includeClaude ? (
               <FieldDescription>
                 {t(
@@ -202,7 +251,12 @@ export function ClientInstallerCard(props: {
             ) : null}
             <Button
               type='submit'
-              disabled={!allowed || sources.length === 0 || mutation.isPending}
+              disabled={
+                !allowed ||
+                sources.length === 0 ||
+                mutation.isPending ||
+                (options.isPending && options.isFetching)
+              }
             >
               <HugeiconsIcon icon={Download04Icon} data-icon='inline-start' />
               {t('Install Selected Collectors')}

@@ -10,6 +10,15 @@ import (
 	"github.com/QuantumNous/new-api/pkg/reporterupdate"
 )
 
+func SignedClientInstallerAvailable(serviceURL string) bool {
+	origin, err := reporterupdate.Origin(serviceURL)
+	if err != nil || !strings.HasPrefix(origin, "https://") {
+		return false
+	}
+	_, _, err = ActiveReporterCatalog()
+	return err == nil
+}
+
 // The first bootstrap is delivered over trusted HTTPS. The downloaded program
 // verifies its own bytes against the signed catalog before redeeming tokens.
 func buildManagedClientInstallScript(params BuildInstallScriptParams, tokens ClientInstallTokens) (string, error) {

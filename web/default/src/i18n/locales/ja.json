@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Automatically check and silently update collectors": "コレクターの更新を自動確認してバックグラウンドで適用",
+    "Checks daily. Updates are verified and installed in the background; failed updates restore the previous version.": "毎日更新を確認します。検証後にバックグラウンドで適用し、失敗時は以前のバージョンに戻します。",
+    "Existing devices must run the signed installation command once to enable automatic updates.": "既存の端末では、署名付きインストールコマンドを一度実行して自動更新を有効にしてください。",
+    "Automatic updates require HTTPS and an active signed release. Ordinary installation remains available with daily manual-update notifications.": "自動更新には HTTPS と有効な署名付きリリースが必要です。通常インストールでは毎日の確認と手動更新の通知を利用できます。",
+    "Automatic update availability could not be checked. Ordinary installation remains available.": "自動更新の利用可否を確認できませんでした。通常インストールは引き続き利用できます。",
     "Claude Code detects its API address automatically. Non-gateway usage is reported; this gateway and its configured aliases are excluded. Restart Claude Code CLI and VS Code sessions after installation.": "Claude Code は API アドレスを自動検出します。このゲートウェイ以外の使用量を報告し、このゲートウェイと設定済みの別名を除外します。インストール後に CLI と VS Code のセッションを再起動してください。",
     "360": "360",
     "1000": "1000",

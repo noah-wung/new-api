@@ -15,9 +15,15 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
+type ClaudeInstallOptions struct {
+	HelperBinary   string
+	RuntimeDir     string
+	DeferTelemetry bool
+}
+
 // InstallClaudeReporter exchanges a source-bound one-time token and prepares
 // private configuration. Service registration is done by the platform script.
-func InstallClaudeReporter(server, token, path, settingsPath string) error {
+func InstallClaudeReporter(server, token, path, settingsPath string, options ...ClaudeInstallOptions) error {
 	if _, err := NormalizeClaudeUpstreamURL(server); err != nil || strings.TrimSpace(token) == "" {
 		return errors.New("a valid server and install token are required")
 	}
@@ -113,7 +119,15 @@ func InstallClaudeReporter(server, token, path, settingsPath string) error {
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
 	}
-	if err := ConfigureClaudeTelemetry(cfg, settingsPath, filepath.Join(filepath.Dir(path), binaryName)); err != nil {
+	helper := filepath.Join(filepath.Dir(path), binaryName)
+	var telemetry ClaudeTelemetryOptions
+	if len(options) > 0 {
+		telemetry = ClaudeTelemetryOptions{RuntimeDir: options[0].RuntimeDir, LegacyBinary: helper, ValidateOnly: options[0].DeferTelemetry}
+		if options[0].HelperBinary != "" {
+			helper = options[0].HelperBinary
+		}
+	}
+	if err := ConfigureClaudeTelemetry(cfg, settingsPath, helper, telemetry); err != nil {
 		return err
 	}
 	return nil
