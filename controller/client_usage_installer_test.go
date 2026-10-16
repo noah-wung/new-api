@@ -80,8 +80,8 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 		answers             string
 		codex, claude, fail bool
 	}{
-		{interactive: true, answers: "1\n\n", codex: true},
-		{interactive: true, answers: "2\n\n", claude: true},
+		{interactive: true, answers: " \r", codex: true},
+		{interactive: true, answers: "\x1b[B \r", claude: true},
 		{codex: true, claude: true},
 		{codex: true, claude: true, fail: true},
 	} {
@@ -118,7 +118,7 @@ func TestClientInstallerOneCommandInstallsBothAndReportsPartialFailure(t *testin
 		if step.fail {
 			require.NoError(t, os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{"otelHeadersHelper":"company-helper"}`), 0o600))
 		}
-		runner := exec.Command("sh", "-c", script.String())
+		runner := exec.Command("bash", "-c", script.String())
 		runner.Stdin = strings.NewReader(step.answers)
 		runner.Env = append(os.Environ(), "HOME="+home, "CLAUDE_CONFIG_DIR="+claudeDir, "PATH="+stubs+string(os.PathListSeparator)+os.Getenv("PATH"), "STUB_LOG="+filepath.Join(root, "launchctl.log"), "ANTHROPIC_BASE_URL=", "CLAUDE_CODE_USE_BEDROCK=", "CLAUDE_CODE_USE_VERTEX=", "CLAUDE_CODE_USE_FOUNDRY=")
 		output, err := runner.CombinedOutput()

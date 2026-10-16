@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/pem"
@@ -14,8 +15,10 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf16"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/external_usage_setting"
@@ -36,15 +39,18 @@ func TestInteractiveClientInstallerFetchesOnlySelectedSources(t *testing.T) {
 			available                    ClientInstallTokens
 			codex, claude, fetched, fail bool
 		}{
-			{name: "codex", input: "1\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
-			{name: "claude", input: "2\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, claude: true, fetched: true},
-			{name: "both", input: "1,2\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, claude: true, fetched: true},
-			{name: "toggle_off", input: "1 2\n2\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
-			{name: "cancel", input: "1\nq\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}},
-			{name: "skip", input: "\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}},
-			{name: "invalid_then_retry", input: "all\n1 99\n1\n\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
-			{name: "eof", input: "1\n", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, fail: true},
-			{name: "only_allowed_source", input: "1\n\n", available: ClientInstallTokens{Claude: "claude-token"}, claude: true, fetched: true},
+			{name: "codex", input: " \r", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
+			{name: "claude", input: "\x1b[B \r", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, claude: true, fetched: true},
+			{name: "both", input: " \x1b[B \r", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, claude: true, fetched: true},
+			{name: "toggle_off", input: " \x1b[B  \r", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
+			{name: "cancel", input: " q", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}},
+			{name: "up_wrap", input: "\x1b[A \r", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, claude: true, fetched: true},
+			{name: "application_arrow", input: "\x1bOB \r", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, claude: true, fetched: true},
+			{name: "interrupt", input: " \x03", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, fail: true},
+			{name: "skip", input: "\r", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}},
+			{name: "unrelated_keys_ignored", input: "19z \r", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, codex: true, fetched: true},
+			{name: "eof", input: " ", available: ClientInstallTokens{Codex: "codex-token", Claude: "claude-token"}, fail: true},
+			{name: "only_allowed_source", input: " \r", available: ClientInstallTokens{Claude: "claude-token"}, claude: true, fetched: true},
 		} {
 			t.Run(fmt.Sprintf("managed=%t/%s", managed, tt.name), func(t *testing.T) {
 				requests := make(chan url.Values, 2)
@@ -57,7 +63,7 @@ func TestInteractiveClientInstallerFetchesOnlySelectedSources(t *testing.T) {
 				require.NoError(t, os.WriteFile(cert, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0o600))
 				script, err := BuildClientInstallScript(BuildInstallScriptParams{Interactive: true, Managed: managed, AutoUpdate: false, Platform: "macos", ServiceURL: server.URL}, tt.available)
 				require.NoError(t, err)
-				runner := exec.Command("sh", "-c", script)
+				runner := exec.Command("bash", "-c", script)
 				runner.Stdin = strings.NewReader(tt.input)
 				runner.Env = append(os.Environ(), "CURL_CA_BUNDLE="+cert)
 				output, err := runner.CombinedOutput()
@@ -97,8 +103,8 @@ func TestClientSourceSelectorSupportsIndependentFutureSources(t *testing.T) {
 		{Name: "Claude Code", TokenParameter: "claude_token", Token: "claude"},
 		{Name: "Future client's tool", TokenParameter: "future_token", Token: "future"},
 	})
-	runner := exec.Command("sh", "-c", script)
-	runner.Stdin = strings.NewReader("1,3\n1\n2\n\n")
+	runner := exec.Command("bash", "-c", script)
+	runner.Stdin = strings.NewReader(" \x1b[A \x1b[B \x1b[B \r")
 	output, err := runner.CombinedOutput()
 	require.NoError(t, err, string(output))
 	require.Len(t, requests, 1)
@@ -106,7 +112,67 @@ func TestClientSourceSelectorSupportsIndependentFutureSources(t *testing.T) {
 	assert.Empty(t, query.Get("codex_token"), "a choice can be deselected before confirmation")
 	assert.Equal(t, "claude", query.Get("claude_token"))
 	assert.Equal(t, "future", query.Get("future_token"), "new source rows need no new selection branches")
-	assert.Contains(t, string(output), "[ ] 1. Codex\n[x] 2. Claude Code\n[x] 3. Future client's tool")
+	assert.Contains(t, string(output), "  [ ] Codex\n> [x] Claude Code\n  [x] Future client's tool")
+}
+
+func TestClientSourceSelectorRestoresRealTerminal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX terminal test")
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is required for the POSIX terminal fixture")
+	}
+	for _, tt := range []struct {
+		name, keys, mode string
+		exit             int
+		fetched          bool
+	}{
+		{name: "confirm", keys: " \x1b[B \r", fetched: true},
+		{name: "cancel", keys: " q"},
+		{name: "interrupt", mode: "interrupt", exit: 130},
+		{name: "end_of_input", keys: "\x04", exit: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			requests := make(chan url.Values, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests <- r.URL.Query()
+				_, _ = w.Write([]byte("printf 'installer executed\\n'\n"))
+			}))
+			defer server.Close()
+			script := renderClientSourceSelector("macos", server.URL+"?", []clientInstallChoice{
+				{Name: "Codex", TokenParameter: "codex_token", Token: "codex"},
+				{Name: "Claude Code", TokenParameter: "claude_token", Token: "claude"},
+			})
+			path := filepath.Join(t.TempDir(), "selector.sh")
+			require.NoError(t, os.WriteFile(path, []byte(script), 0o600))
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			runner := exec.CommandContext(ctx, python, "testdata/selector_terminal.py", path, base64.StdEncoding.EncodeToString([]byte(tt.keys)), tt.mode)
+			output, err := runner.CombinedOutput()
+			require.NoError(t, err, string(output))
+			var result struct {
+				Exit     int    `json:"exit_code"`
+				Restored bool   `json:"terminal_restored"`
+				Sent     bool   `json:"keys_sent"`
+				Output   string `json:"output"`
+				Delta    string `json:"terminal_delta"`
+			}
+			require.NoError(t, common.Unmarshal(output, &result), string(output))
+			assert.True(t, result.Sent, "the fixture must wait for the live menu before sending keys")
+			assert.True(t, result.Restored, "terminal echo and input mode must be restored on every exit: %s; output: %s", result.Delta, result.Output)
+			assert.Contains(t, result.Output, "\x1b[?25h", "show the cursor again on exit")
+			assert.Equal(t, tt.exit, result.Exit, result.Output)
+			if !tt.fetched {
+				assert.Empty(t, requests, "cancellation must not run installation")
+				return
+			}
+			require.Len(t, requests, 1)
+			query := <-requests
+			assert.Equal(t, "codex", query.Get("codex_token"))
+			assert.Equal(t, "claude", query.Get("claude_token"))
+		})
+	}
 }
 
 func TestClientInstallerRejectsMixedAccountsConsumedTokensAndDisabledSources(t *testing.T) {

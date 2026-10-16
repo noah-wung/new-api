@@ -59,30 +59,47 @@ $Collectors = @(
 			fmt.Fprintf(&script, "  @{ Label = '%s'; Query = '%s'; Chosen = $false }\n", strings.ReplaceAll(choice.Name, "'", "''"), strings.ReplaceAll(fragment, "'", "''"))
 		}
 		script.WriteString(`)
-while ($true) {
-  Write-Host ''
-  for ($Index = 0; $Index -lt $Collectors.Count; $Index++) {
-    $Mark = ' '
-    if ($Collectors[$Index].Chosen) { $Mark = 'x' }
-    Write-Host ('[{0}] {1}. {2}' -f $Mark, ($Index + 1), $Collectors[$Index].Label)
-  }
-  $Answer = Read-Host 'Numbers toggle choices (e.g. 1,2); Enter installs; q cancels'
-  if ($null -eq $Answer) { throw 'Installation cancelled: no input. Run the command in an interactive terminal.' }
-  $Answer = $Answer.Trim()
-  if ($Answer -eq 'q') { Write-Host 'Installation cancelled. No changes made.'; return }
-  if ($Answer -eq '') { break }
-  $Numbers = @($Answer -split '[,\s]+' | Where-Object { $_ -ne '' })
-  $Valid = $Numbers.Count -gt 0
-  foreach ($Number in $Numbers) {
-    $Index = 0
-    if ($Number -notmatch '^[1-9][0-9]*$' -or -not [int]::TryParse($Number, [ref]$Index) -or $Index -gt $Collectors.Count) { $Valid = $false; break }
-  }
-  if (-not $Valid) { Write-Host 'Enter only the displayed choice numbers.'; continue }
-  foreach ($Number in $Numbers) {
-    $Index = [int]$Number - 1
-    $Collectors[$Index].Chosen = -not $Collectors[$Index].Chosen
-  }
+if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected) {
+  throw 'Run the installation command in an interactive terminal.'
 }
+$Cursor = 0
+$Cancelled = $false
+$CursorVisible = [Console]::CursorVisible
+$ControlCAsInput = [Console]::TreatControlCAsInput
+$MenuHeight = $Collectors.Count + 1
+Write-Host ([Environment]::NewLine * $MenuHeight) -NoNewline
+$MenuTop = [Math]::Max(0, [Console]::CursorTop - $MenuHeight)
+try {
+  [Console]::CursorVisible = $false
+  [Console]::TreatControlCAsInput = $true
+  while ($true) {
+    [Console]::SetCursorPosition(0, $MenuTop)
+    $Width = [Math]::Max(1, [Console]::WindowWidth - 1)
+    for ($Index = 0; $Index -lt $Collectors.Count; $Index++) {
+      $Mark = ' '
+      $Pointer = ' '
+      if ($Collectors[$Index].Chosen) { $Mark = 'x' }
+      if ($Index -eq $Cursor) { $Pointer = '>' }
+      $Line = '{0} [{1}] {2}' -f $Pointer, $Mark, $Collectors[$Index].Label
+      if ($Line.Length -gt $Width) { $Line = $Line.Substring(0, $Width) }
+      Write-Host $Line.PadRight($Width)
+    }
+    $HelpLine = 'Up/Down: move  Space: select  Enter: install  q: cancel'
+    if ($HelpLine.Length -gt $Width) { $HelpLine = $HelpLine.Substring(0, $Width) }
+    Write-Host $HelpLine.PadRight($Width)
+    $Key = [Console]::ReadKey($true)
+    if ($Key.Key -eq [ConsoleKey]::UpArrow) { $Cursor = ($Cursor + $Collectors.Count - 1) % $Collectors.Count }
+    elseif ($Key.Key -eq [ConsoleKey]::DownArrow) { $Cursor = ($Cursor + 1) % $Collectors.Count }
+    elseif ($Key.Key -eq [ConsoleKey]::Spacebar) { $Collectors[$Cursor].Chosen = -not $Collectors[$Cursor].Chosen }
+    elseif ($Key.Key -eq [ConsoleKey]::Enter) { break }
+    elseif ($Key.Key -eq [ConsoleKey]::Q -or $Key.KeyChar -eq [char]3) { $Cancelled = $true; break }
+  }
+} finally {
+  [Console]::TreatControlCAsInput = $ControlCAsInput
+  [Console]::CursorVisible = $CursorVisible
+  [Console]::SetCursorPosition(0, [Math]::Min([Console]::BufferHeight - 1, $MenuTop + $MenuHeight))
+}
+if ($Cancelled) { Write-Host 'Installation cancelled. No changes made.'; return }
 $Selected = @($Collectors | Where-Object { $_.Chosen })
 if ($Selected.Count -eq 0) {
   Write-Host 'No collectors selected. No changes made.'
@@ -94,53 +111,83 @@ if ($Selected.Count -eq 0) {
 `)
 		return script.String()
 	}
-	fmt.Fprintf(&script, `#!/bin/sh
+	fmt.Fprintf(&script, `#!/bin/bash
 set -eu
-set -f
 echo 'Choose collectors to install or add. Existing collectors remain installed.'
 INSTALL_URL=%s
 SELECTED=0
+CURSOR=1
+TTY_MODE=0
+MENU_DRAWN=0
+exec 3<&0
+if [ -t 3 ]; then
+  TTY_MODE=1
+  TERMINAL_STATE="$(stty -g <&3)"
+fi
+restore_selector_terminal() {
+  if [ "$TTY_MODE" -eq 1 ]; then
+    stty "$TERMINAL_STATE" <&3 || :
+    printf '\033[?25h'
+  fi
+}
+trap restore_selector_terminal EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+if [ "$TTY_MODE" -eq 1 ]; then
+  # Read Ctrl+C as an explicit cancel key; restore signal processing on exit.
+  stty -echo -icanon -isig min 1 time 0 <&3
+  printf '\033[?25l'
+fi
 `, quoteInstallerLiteral(endpoint))
 	for index := range choices {
 		fmt.Fprintf(&script, "CHOSEN_%d=0\n", index+1)
 	}
-	script.WriteString("while :; do\n  printf '\\n'\n")
-	var numbers []string
+	fmt.Fprintf(&script, `while :; do
+  if [ "$TTY_MODE" -eq 1 ] && [ "$MENU_DRAWN" -eq 1 ]; then printf '\033[%dA'; fi
+`, len(choices)+1)
 	for index, choice := range choices {
 		number := index + 1
-		numbers = append(numbers, fmt.Sprint(number))
 		fmt.Fprintf(&script, `  if [ "$CHOSEN_%d" -eq 1 ]; then MARK=x; else MARK=' '; fi
-  printf '[%%s] %d. %%s\n' "$MARK" %s
+  if [ "$CURSOR" -eq %d ]; then POINTER='>'; else POINTER=' '; fi
+  if [ "$TTY_MODE" -eq 1 ]; then printf '\r\033[2K'; fi
+  printf '%%s [%%s] %%s\n' "$POINTER" "$MARK" %s
 `, number, number, quoteInstallerLiteral(choice.Name))
 	}
-	script.WriteString(`  printf 'Numbers toggle choices (e.g. 1,2); Enter installs; q cancels: '
-  if ! IFS= read -r ANSWER; then
+	script.WriteString(`  if [ "$TTY_MODE" -eq 1 ]; then printf '\r\033[2K'; fi
+  printf 'Up/Down: move  Space: select  Enter: install  q: cancel\n'
+  MENU_DRAWN=1
+  KEY=''
+  if ! IFS= read -r -s -n 1 KEY <&3; then
     echo 'Installation cancelled: no input. Run the command in an interactive terminal.' >&2
     exit 1
   fi
-  case "$ANSWER" in
+  case "$KEY" in
     q|Q) echo 'Installation cancelled. No changes made.'; exit 0 ;;
-    '') break ;;
-    *[!0-9,\ ]*) echo 'Enter only the displayed choice numbers.'; continue ;;
-  esac
-  NUMBERS="$(printf '%s' "$ANSWER" | tr ',' ' ')"
-  VALID=0
-  for NUMBER in $NUMBERS; do
-    case "$NUMBER" in
+    ''|$'\r') break ;;
+    $'\003') exit 130 ;;
+    $'\004') echo 'Installation cancelled: no input.' >&2; exit 1 ;;
+    $'\033')
+      PREFIX=''
+      SUFFIX=''
+      if IFS= read -r -s -n 1 -t 1 PREFIX <&3 && { [ "$PREFIX" = '[' ] || [ "$PREFIX" = 'O' ]; }; then
+        IFS= read -r -s -n 1 -t 1 SUFFIX <&3 || :
+      fi
+      case "$SUFFIX" in
 `)
-	fmt.Fprintf(&script, "      %s) VALID=1 ;;\n", strings.Join(numbers, "|"))
-	script.WriteString(`      *) VALID=0; break ;;
-    esac
-  done
-  if [ "$VALID" -eq 0 ]; then echo 'Enter only the displayed choice numbers.'; continue; fi
-  for NUMBER in $NUMBERS; do
-    case "$NUMBER" in
+	fmt.Fprintf(&script, `        A) CURSOR=$(((CURSOR + %d - 2) %% %d + 1)) ;;
+        B) CURSOR=$((CURSOR %% %d + 1)) ;;
+`, len(choices), len(choices), len(choices))
+	script.WriteString(`      esac
+      ;;
+    ' ')
+      case "$CURSOR" in
 `)
 	for index := range choices {
 		number := index + 1
-		fmt.Fprintf(&script, "      %d) CHOSEN_%d=$((1 - CHOSEN_%d)) ;;\n", number, number, number)
+		fmt.Fprintf(&script, "        %d) CHOSEN_%d=$((1 - CHOSEN_%d)) ;;\n", number, number, number)
 	}
-	script.WriteString("    esac\n  done\ndone\n")
+	script.WriteString("      esac\n      ;;\n  esac\ndone\nrestore_selector_terminal\ntrap - EXIT INT TERM HUP\nexec 3<&-\n")
 	for index, choice := range choices {
 		fragment := "&" + url.Values{choice.TokenParameter: {choice.Token}}.Encode()
 		fmt.Fprintf(&script, `if [ "$CHOSEN_%d" -eq 1 ]; then
