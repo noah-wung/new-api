@@ -476,6 +476,38 @@ type DeleteExternalUsageModelDataResult struct {
 func DeleteExternalUsageModelData(userID int, source string, normalizedModelName string) (*DeleteExternalUsageModelDataResult, error) {
 	result := &DeleteExternalUsageModelDataResult{}
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if source == ExternalUsageSourceZCode {
+			if err := LockZCodeUsageUser(tx, userID); err != nil {
+				return err
+			}
+			var events []ExternalUsageClientEvent
+			if err := tx.Where("user_id = ? AND source = ? AND normalized_model_name = ?", userID, source, normalizedModelName).Find(&events).Error; err != nil {
+				return err
+			}
+			seen := make(map[string]bool, len(events))
+			for i := range events {
+				event := &events[i]
+				if seen[event.EventIdentity] {
+					return errors.New("duplicate historical ZCode identities require audit")
+				}
+				seen[event.EventIdentity] = true
+				fingerprint, err := ZCodeUsageFingerprint(event)
+				if err != nil {
+					return err
+				}
+				var identity ZCodeUsageIdentity
+				err = tx.Where("user_id = ? AND event_identity = ?", userID, event.EventIdentity).First(&identity).Error
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					if err := tx.Create(&ZCodeUsageIdentity{UserID: userID, EventIdentity: event.EventIdentity, Fingerprint: fingerprint}).Error; err != nil {
+						return err
+					}
+				} else if err != nil {
+					return err
+				} else if identity.Fingerprint != fingerprint {
+					return errors.New("conflicting historical ZCode identity requires audit")
+				}
+			}
+		}
 		deleteCursor := tx.Where("user_id = ? AND source = ? AND normalized_model_name = ?", userID, source, normalizedModelName).
 			Delete(&ExternalUsageCursorEvent{})
 		if deleteCursor.Error != nil {

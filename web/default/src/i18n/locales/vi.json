@@ -1,5 +1,6 @@
 {
   "translation": {
+    "ZCode requires a compatible signed collector and verified provider routes. Unresolved usage stays on this device until its route is confirmed.": "ZCode cần bộ thu thập có chữ ký tương thích và tuyến nhà cung cấp đã được xác minh. Dữ liệu chưa xác định được tuyến sẽ được giữ trên thiết bị này cho đến khi tuyến được xác nhận.",
     "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.": "Chạy một lệnh và chọn nguồn thu thập trong thiết bị đầu cuối khi cài đặt. Báo cáo được gửi trong nền mỗi 5 phút.",
     "Available collectors: {{clients}}": "Bộ thu thập khả dụng: {{clients}}",
     "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.": "Chạy lại lệnh để thêm nguồn thu thập. Các bộ thu thập hiện có được giữ lại; bỏ qua một nguồn không gỡ cài đặt nguồn đó.",

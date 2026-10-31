@@ -1,5 +1,6 @@
 {
   "translation": {
+    "ZCode requires a compatible signed collector and verified provider routes. Unresolved usage stays on this device until its route is confirmed.": "ZCode nécessite un collecteur signé compatible et des routes de fournisseur vérifiées. Les données non résolues restent sur cet appareil jusqu’à confirmation de leur route.",
     "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.": "Exécutez une seule commande et choisissez vos sources de collecte dans le terminal pendant l’installation. Les rapports sont envoyés en arrière-plan toutes les 5 minutes.",
     "Available collectors: {{clients}}": "Collecteurs disponibles : {{clients}}",
     "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.": "Exécutez à nouveau la commande pour ajouter une source de collecte. Les collecteurs existants sont conservés ; ignorer une source ne la désinstalle pas.",

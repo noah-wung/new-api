@@ -22,6 +22,16 @@ func reporterTestEvent(id, origin string) CollectedEvent {
 	}}
 }
 
+func TestReporterCanStopImmediatelyWhenQueueIsFull(t *testing.T) {
+	reporter, err := NewReporter(ReporterConfig{Source: "zcode", Server: "https://gateway.example", Credential: "fixture", StatePath: filepath.Join(t.TempDir(), "state.json"), QueueCapacity: 1, StopOnQueueFull: true})
+	require.NoError(t, err)
+	_, err = reporter.Report(context.Background(), Collection{Events: []CollectedEvent{reporterTestEvent("one", "https://external.example"), reporterTestEvent("two", "https://external.example")}})
+	require.ErrorIs(t, err, ErrQueueFull)
+	entries, err := os.ReadDir(reporter.queueDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+}
+
 func TestReporterFiltersAndUploadsWithoutClientSpecificImplementation(t *testing.T) {
 	for _, source := range []string{SourceCodex, SourceClaudeCode, "future_client"} {
 		t.Run(source, func(t *testing.T) {

@@ -19,6 +19,7 @@ type clientRegistration struct {
 
 var clientRegistrations = map[string]clientRegistration{
 	SourceCodex: {run: runCodexCollector, selfCheck: checkCodexLocalData},
+	SourceZCode: {run: runZCodeCollector, selfCheck: checkZCodeLocalData},
 	SourceClaudeCode: {streaming: true, selfCheck: checkClaudeLocalConfig, legacyQueueSuffix: ".claude-queue", run: func(ctx context.Context, cfg Config, _ io.Writer, diagnostics io.Writer) error {
 		return RunClaudeReceiver(ctx, cfg, diagnostics)
 	}},

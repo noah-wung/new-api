@@ -17,11 +17,14 @@ func buildInteractiveClientInstallScript(params BuildInstallScriptParams, tokens
 	if err := ValidateInstallerPlatform(params.Platform); err != nil {
 		return "", err
 	}
-	if tokens.Codex == "" && tokens.Claude == "" {
+	if tokens.Codex == "" && tokens.Claude == "" && tokens.ZCode == "" {
 		return "", errors.New("select at least one client collector")
 	}
 	if params.Managed && !SignedClientInstallerAvailable(params.ServiceURL) {
 		return "", errors.New("Automatic updates require HTTPS and an active signed release.")
+	}
+	if tokens.ZCode != "" && !params.Managed {
+		return "", errors.New("ZCode requires a signed managed installer")
 	}
 	query := url.Values{}
 	if params.Managed {
@@ -36,6 +39,7 @@ func buildInteractiveClientInstallScript(params BuildInstallScriptParams, tokens
 	for _, choice := range []clientInstallChoice{
 		{"Codex", "codex_token", tokens.Codex},
 		{"Claude Code (CLI and VS Code)", "claude_token", tokens.Claude},
+		{"ZCode", "zcode_token", tokens.ZCode},
 	} {
 		if choice.Token != "" {
 			choices = append(choices, choice)

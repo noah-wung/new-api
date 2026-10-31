@@ -1,5 +1,6 @@
 {
   "translation": {
+    "ZCode requires a compatible signed collector and verified provider routes. Unresolved usage stays on this device until its route is confirmed.": "ZCode 需要兼容的签名采集器和经核实的服务商路由。路由未确认的用量会保留在此设备上，直到确认其路由。",
     "Run one command and choose your collection sources in the terminal during installation. Reports are sent every 5 minutes in the background.": "执行一条命令，在安装时通过终端选择采集来源。数据每 5 分钟在后台上报一次。",
     "Available collectors: {{clients}}": "可用采集器：{{clients}}",
     "Run the command again to add a collection source. Existing collectors are kept; skipping a source does not uninstall it.": "再次执行命令即可追加采集来源。已有采集器会保留，跳过某个来源不会卸载它。",

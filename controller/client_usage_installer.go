@@ -39,13 +39,13 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if len(req.Sources) == 0 || len(req.Sources) > 2 {
-		common.ApiErrorMsg(c, "select Codex, Claude Code, or both")
+	if len(req.Sources) == 0 || len(req.Sources) > 3 {
+		common.ApiErrorMsg(c, "select at least one client collector")
 		return
 	}
 	selected := make(map[string]bool)
 	for _, source := range req.Sources {
-		if selected[source] || source != model.ExternalUsageSourceCodex && source != model.ExternalUsageSourceClaudeCode {
+		if selected[source] || source != model.ExternalUsageSourceCodex && source != model.ExternalUsageSourceClaudeCode && source != model.ExternalUsageSourceZCode {
 			common.ApiErrorMsg(c, "invalid or duplicate client collector")
 			return
 		}
@@ -64,6 +64,10 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 			return
 		}
 	}
+	if selected[model.ExternalUsageSourceZCode] && !params.Managed {
+		common.ApiErrorMsg(c, "ZCode requires a signed managed installer")
+		return
+	}
 	var expiresAt int64
 	if selected[model.ExternalUsageSourceClaudeCode] {
 		token, raw, err := service.IssueClaudeInstallToken(c.GetInt("id"), req.UpstreamURL, req.UpstreamIsGateway)
@@ -80,6 +84,17 @@ func CreateExternalUsageSelfClientInstallerCommand(c *gin.Context) {
 			return
 		}
 		tokens.Codex = raw
+		if expiresAt == 0 || token.ExpiresAt < expiresAt {
+			expiresAt = token.ExpiresAt
+		}
+	}
+	if selected[model.ExternalUsageSourceZCode] {
+		token, raw, err := service.IssueZCodeInstallToken(c.GetInt("id"))
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		tokens.ZCode = raw
 		if expiresAt == 0 || token.ExpiresAt < expiresAt {
 			expiresAt = token.ExpiresAt
 		}
@@ -105,7 +120,7 @@ func GetExternalUsageClientInstallScript(c *gin.Context) {
 		common.ApiErrorMsg(c, "invalid automatic update option")
 		return
 	}
-	tokens := service.ClientInstallTokens{Codex: c.Query("codex_token"), Claude: c.Query("claude_token")}
+	tokens := service.ClientInstallTokens{Codex: c.Query("codex_token"), Claude: c.Query("claude_token"), ZCode: c.Query("zcode_token")}
 	if err := service.ValidateClientInstallTokens(tokens); err != nil {
 		common.ApiError(c, err)
 		return

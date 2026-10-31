@@ -302,6 +302,7 @@ func SetApiRouter(router *gin.Engine) {
 			externalUsageRoute.POST("/report", middleware.CriticalRateLimit(), controller.ReportExternalUsage)
 			externalUsageRoute.POST("/self/codex-installer/exchange", controller.ExchangeExternalUsageSelfCodexInstallerToken)
 			externalUsageRoute.POST("/self/claude-code-installer/exchange", controller.ExchangeExternalUsageSelfClaudeInstallerToken)
+			externalUsageRoute.POST("/self/zcode-installer/exchange", controller.ExchangeExternalUsageSelfZCodeInstallerToken)
 			externalUsageRoute.GET("/reporter/:script", controller.GetExternalUsageReporterInstallScript)
 			externalUsageRoute.GET("/reporter/binary/:target/:name", controller.GetExternalUsageReporterBinary)
 

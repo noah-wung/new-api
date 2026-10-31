@@ -87,3 +87,12 @@ test('unconfigured signed updates retain ordinary installation', () => {
   assert.match(html, /Ordinary installation remains available/)
   assert.doesNotMatch(html, /Claude API address/)
 })
+
+test('ZCode is available only with a signed installer and identifies routing requirements', () => {
+  const ready = renderInstaller(true, ['codex', 'claude_code', 'zcode'], true)
+  assert.match(ready, /Available collectors: Codex, Claude Code \(CLI and VS Code\), ZCode/)
+  assert.match(ready, /verified provider routes/)
+  const missing = renderInstaller(true, ['codex', 'zcode'], false)
+  assert.match(missing, /Available collectors: Codex/)
+  assert.doesNotMatch(missing, /Available collectors: Codex, ZCode/)
+})

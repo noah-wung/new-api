@@ -40,6 +40,35 @@ type ClientUsageEventInput struct {
 	OutputTokens         int    `json:"output_tokens"`
 	ReasoningOutputToken int    `json:"reasoning_output_token"`
 	TotalTokens          int    `json:"total_tokens"`
+	reasoningConflict    bool
+}
+
+// UnmarshalJSON accepts both the original server spelling and the reporter's
+// established envelope spelling without losing an explicit zero.
+func (e *ClientUsageEventInput) UnmarshalJSON(data []byte) error {
+	type eventAlias ClientUsageEventInput
+	var wire struct {
+		*eventAlias
+		Singular *int `json:"reasoning_output_token"`
+		Plural   *int `json:"reasoning_output_tokens"`
+	}
+	var decoded eventAlias
+	wire.eventAlias = &decoded
+	if err := common.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*e = ClientUsageEventInput(decoded)
+	if wire.Singular != nil {
+		e.ReasoningOutputToken = *wire.Singular
+	}
+	if wire.Plural != nil {
+		if wire.Singular != nil && *wire.Singular != *wire.Plural {
+			e.reasoningConflict = true
+		} else {
+			e.ReasoningOutputToken = *wire.Plural
+		}
+	}
+	return nil
 }
 
 type ReportExternalUsageParams struct {
@@ -384,6 +413,11 @@ func ReportExternalUsage(device *model.ExternalUsageDevice, params ReportExterna
 		if err := tx.Create(batch).Error; err != nil {
 			return err
 		}
+		if source == model.ExternalUsageSourceZCode {
+			if err := model.LockZCodeUsageUser(tx, device.UserID); err != nil {
+				return err
+			}
+		}
 		modelMappingLookup, err := buildExternalUsageModelMappingLookup(tx, source)
 		if err != nil {
 			return err
@@ -405,10 +439,49 @@ func ReportExternalUsage(device *model.ExternalUsageDevice, params ReportExterna
 			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
+			if source == model.ExternalUsageSourceZCode {
+				candidate := &model.ExternalUsageClientEvent{OccurredAt: eventInput.OccurredAt, SourceSessionHash: sessionHash, SourceModelName: eventInput.SourceModelName, InputToken: eventInput.InputTokens, CachedInputToken: eventInput.CachedInputTokens, OutputToken: eventInput.OutputTokens, ReasoningOutputToken: eventInput.ReasoningOutputToken, TotalToken: eventInput.TotalTokens}
+				fingerprint, fingerprintErr := model.ZCodeUsageFingerprint(candidate)
+				if fingerprintErr != nil {
+					return fingerprintErr
+				}
+				var identity model.ZCodeUsageIdentity
+				identityErr := tx.Where("user_id = ? AND event_identity = ?", device.UserID, strings.TrimSpace(eventInput.EventID)).First(&identity).Error
+				if identityErr != nil && !errors.Is(identityErr, gorm.ErrRecordNotFound) {
+					return identityErr
+				}
+				if identityErr == nil {
+					if identity.Fingerprint != fingerprint {
+						batch.RejectedCount++
+						result.RejectedEventInfos = append(result.RejectedEventInfos, ReportExternalUsageRejected{EventID: eventInput.EventID, Reason: "event identity conflicts with existing usage"})
+					} else {
+						batch.DuplicateCount++
+						result.DuplicateEventIDs = append(result.DuplicateEventIDs, eventInput.EventID)
+						acceptedOccurredAt = append(acceptedOccurredAt, eventInput.OccurredAt)
+					}
+					continue
+				}
+				if existingEvent != nil {
+					var count int64
+					if err := tx.Model(&model.ExternalUsageClientEvent{}).Where("user_id = ? AND source = ? AND event_identity = ?", device.UserID, source, strings.TrimSpace(eventInput.EventID)).Count(&count).Error; err != nil {
+						return err
+					}
+					if count != 1 {
+						return errors.New("duplicate historical ZCode identities require audit")
+					}
+					fingerprint, fingerprintErr = model.ZCodeUsageFingerprint(existingEvent)
+					if fingerprintErr != nil {
+						return fingerprintErr
+					}
+				}
+				if err := tx.Create(&model.ZCodeUsageIdentity{UserID: device.UserID, EventIdentity: strings.TrimSpace(eventInput.EventID), Fingerprint: fingerprint}).Error; err != nil {
+					return err
+				}
+			}
 			// Claude telemetry provides request-level identities. Two separate
 			// requests can have identical counts within the same session second;
 			// the legacy equivalence heuristic would incorrectly collapse them.
-			if source != model.ExternalUsageSourceClaudeCode && existingEvent == nil && errors.Is(err, gorm.ErrRecordNotFound) {
+			if source != model.ExternalUsageSourceClaudeCode && source != model.ExternalUsageSourceZCode && existingEvent == nil && errors.Is(err, gorm.ErrRecordNotFound) {
 				existingEvent, err = model.FindEquivalentExternalUsageClientEventTx(
 					tx,
 					device.UserID,
@@ -426,6 +499,11 @@ func ReportExternalUsage(device *model.ExternalUsageDevice, params ReportExterna
 				}
 			}
 			if existingEvent != nil {
+				if source == model.ExternalUsageSourceZCode && !sameZCodeUsage(existingEvent, eventInput) {
+					batch.RejectedCount++
+					result.RejectedEventInfos = append(result.RejectedEventInfos, ReportExternalUsageRejected{EventID: eventInput.EventID, Reason: "event identity conflicts with existing usage"})
+					continue
+				}
 				if err := repairExternalUsageClientEventIfNeeded(tx, existingEvent, source, eventInput, normalizedModelName); err != nil {
 					return err
 				}
@@ -579,6 +657,9 @@ func parseCursorOccurredAt(value string) (int64, error) {
 }
 
 func validateClientUsageEvent(event ClientUsageEventInput, acceptWindowDays int) string {
+	if event.reasoningConflict {
+		return "reasoning output fields conflict"
+	}
 	if strings.TrimSpace(event.EventID) == "" {
 		return "missing event_id"
 	}
@@ -609,6 +690,13 @@ func validateClientUsageEvent(event ClientUsageEventInput, acceptWindowDays int)
 		return "event occurred_at is in the future"
 	}
 	return ""
+}
+
+func sameZCodeUsage(stored *model.ExternalUsageClientEvent, incoming ClientUsageEventInput) bool {
+	return stored.OccurredAt == incoming.OccurredAt && stored.SourceSessionHash == strings.TrimSpace(incoming.SessionID) &&
+		stored.SourceModelName == strings.TrimSpace(incoming.SourceModelName) && stored.InputToken == incoming.InputTokens &&
+		stored.CachedInputToken == incoming.CachedInputTokens && stored.OutputToken == incoming.OutputTokens &&
+		stored.ReasoningOutputToken == incoming.ReasoningOutputToken && stored.TotalToken == incoming.TotalTokens
 }
 
 func csvField(record []string, indexByHeader map[string]int, name string) string {

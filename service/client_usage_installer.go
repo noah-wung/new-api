@@ -14,18 +14,16 @@ import (
 type ClientInstallTokens struct {
 	Codex  string
 	Claude string
+	ZCode  string
 }
 
 func ValidateClientInstallTokens(tokens ClientInstallTokens) error {
-	if tokens.Codex == "" && tokens.Claude == "" {
+	if tokens.Codex == "" && tokens.Claude == "" && tokens.ZCode == "" {
 		return errors.New("select at least one client collector")
 	}
 	userID := -1
-	for _, source := range []string{model.ExternalUsageSourceCodex, model.ExternalUsageSourceClaudeCode} {
-		raw := tokens.Codex
-		if source == model.ExternalUsageSourceClaudeCode {
-			raw = tokens.Claude
-		}
+	for _, entry := range []struct{ source, raw string }{{model.ExternalUsageSourceCodex, tokens.Codex}, {model.ExternalUsageSourceClaudeCode, tokens.Claude}, {model.ExternalUsageSourceZCode, tokens.ZCode}} {
+		source, raw := entry.source, entry.raw
 		if raw == "" {
 			continue
 		}
@@ -48,7 +46,7 @@ func BuildClientInstallerCommand(params BuildInstallScriptParams, tokens ClientI
 	if err := ValidateInstallerPlatform(params.Platform); err != nil {
 		return "", err
 	}
-	if tokens.Codex == "" && tokens.Claude == "" {
+	if tokens.Codex == "" && tokens.Claude == "" && tokens.ZCode == "" {
 		return "", errors.New("select at least one client collector")
 	}
 	query := url.Values{}
@@ -63,6 +61,9 @@ func BuildClientInstallerCommand(params BuildInstallScriptParams, tokens ClientI
 	}
 	if tokens.Claude != "" {
 		query.Set("claude_token", tokens.Claude)
+	}
+	if tokens.ZCode != "" {
+		query.Set("zcode_token", tokens.ZCode)
 	}
 	extension := "sh"
 	if params.Platform == ExternalUsageInstallerPlatformWindows {
@@ -83,6 +84,9 @@ func BuildClientInstallScript(params BuildInstallScriptParams, tokens ClientInst
 	}
 	if params.Managed {
 		return buildManagedClientInstallScript(params, tokens)
+	}
+	if tokens.ZCode != "" {
+		return "", errors.New("ZCode requires a signed managed installer")
 	}
 	if err := ValidateInstallerPlatform(params.Platform); err != nil {
 		return "", err

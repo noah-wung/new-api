@@ -11,6 +11,11 @@ import (
 // SelfCheck reads configuration and data without creating queues, changing
 // checkpoints, contacting upstreams or binding the receiver port.
 func SelfCheck(cfg Config) error {
+	var err error
+	cfg.StatePath, err = ExpandPath(cfg.StatePath)
+	if err != nil {
+		return err
+	}
 	if err := cfg.Validate(); err != nil {
 		return err
 	}

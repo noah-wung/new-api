@@ -14,23 +14,28 @@ import (
 const (
 	DefaultReportInterval = 5 * time.Minute
 	DefaultCodexDir       = "~/.codex/sessions"
+	DefaultZCodeDB        = "~/.zcode/cli/db/db.sqlite"
 	DefaultStatePath      = "~/.new-api-usage-reporter/state.json"
 )
 
 type Config struct {
-	Server                 string   `json:"server"`
-	Source                 string   `json:"source"`
-	Credential             string   `json:"credential"`
-	CodexDir               string   `json:"codex_dir"`
-	StatePath              string   `json:"state_path"`
-	AcceptWindowDays       int      `json:"accept_window_days,omitempty"`
-	GatewayURLs            []string `json:"gateway_urls,omitempty"`
-	ExcludedCodexProviders []string `json:"excluded_codex_providers,omitempty"`
-	CodexConfigPath        string   `json:"codex_config_path,omitempty"`
-	ClaudeListen           string   `json:"claude_listen,omitempty"`
-	ClaudeReceiverToken    string   `json:"claude_receiver_token,omitempty"`
-	ClaudeAutoRoute        bool     `json:"claude_auto_route,omitempty"`
-	ClaudeExternalURLs     []string `json:"claude_external_urls"`
+	Server                 string               `json:"server"`
+	Source                 string               `json:"source"`
+	Credential             string               `json:"credential"`
+	CodexDir               string               `json:"codex_dir"`
+	ZCodeDBPath            string               `json:"zcode_db_path,omitempty"`
+	ZCodeProviderRoutes    []ZCodeProviderRoute `json:"zcode_provider_routes,omitempty"`
+	ZCodeGatewayHosts      []string             `json:"zcode_gateway_hosts,omitempty"`
+	ZCodeExcludedProviders []string             `json:"zcode_excluded_providers,omitempty"`
+	StatePath              string               `json:"state_path"`
+	AcceptWindowDays       int                  `json:"accept_window_days,omitempty"`
+	GatewayURLs            []string             `json:"gateway_urls,omitempty"`
+	ExcludedCodexProviders []string             `json:"excluded_codex_providers,omitempty"`
+	CodexConfigPath        string               `json:"codex_config_path,omitempty"`
+	ClaudeListen           string               `json:"claude_listen,omitempty"`
+	ClaudeReceiverToken    string               `json:"claude_receiver_token,omitempty"`
+	ClaudeAutoRoute        bool                 `json:"claude_auto_route,omitempty"`
+	ClaudeExternalURLs     []string             `json:"claude_external_urls"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -64,6 +69,18 @@ func SaveConfig(path string, cfg Config) error {
 		}
 		if cfg.CodexConfigPath == "" {
 			cfg.CodexConfigPath = existing.CodexConfigPath
+		}
+		if cfg.ZCodeDBPath == "" {
+			cfg.ZCodeDBPath = existing.ZCodeDBPath
+		}
+		if cfg.ZCodeProviderRoutes == nil {
+			cfg.ZCodeProviderRoutes = existing.ZCodeProviderRoutes
+		}
+		if cfg.ZCodeGatewayHosts == nil {
+			cfg.ZCodeGatewayHosts = existing.ZCodeGatewayHosts
+		}
+		if cfg.ZCodeExcludedProviders == nil {
+			cfg.ZCodeExcludedProviders = existing.ZCodeExcludedProviders
 		}
 		if cfg.AcceptWindowDays == 0 {
 			cfg.AcceptWindowDays = existing.AcceptWindowDays
@@ -121,6 +138,9 @@ func ApplyExplicitOverrides(base Config, override Config, explicitlySet map[stri
 	if explicitlySet["codex-dir"] {
 		base.CodexDir = override.CodexDir
 	}
+	if explicitlySet["zcode-db"] {
+		base.ZCodeDBPath = override.ZCodeDBPath
+	}
 	if explicitlySet["state"] {
 		base.StatePath = override.StatePath
 	}
@@ -150,8 +170,21 @@ func (c Config) withDefaults() Config {
 	if c.CodexDir == "" {
 		c.CodexDir = DefaultCodexDir
 	}
+	if c.ZCodeDBPath == "" {
+		c.ZCodeDBPath = strings.TrimSpace(os.Getenv("ZCODE_SESSION_DB_PATH"))
+		if c.ZCodeDBPath == "" {
+			c.ZCodeDBPath = strings.TrimSpace(os.Getenv("ZCODE_SESSION_DB"))
+		}
+		if c.ZCodeDBPath == "" {
+			c.ZCodeDBPath = DefaultZCodeDB
+		}
+	}
 	if c.StatePath == "" {
-		c.StatePath = DefaultStatePath
+		if c.Source == SourceZCode {
+			c.StatePath = "~/.new-api-usage-reporter/zcode/state.json"
+		} else {
+			c.StatePath = DefaultStatePath
+		}
 	}
 	return c
 }
@@ -161,6 +194,7 @@ func (c Config) trimmed() Config {
 	c.Source = strings.TrimSpace(c.Source)
 	c.Credential = strings.TrimSpace(c.Credential)
 	c.CodexDir = strings.TrimSpace(c.CodexDir)
+	c.ZCodeDBPath = strings.TrimSpace(c.ZCodeDBPath)
 	c.StatePath = strings.TrimSpace(c.StatePath)
 	c.CodexConfigPath = strings.TrimSpace(c.CodexConfigPath)
 	c.ClaudeListen = strings.TrimSpace(c.ClaudeListen)
@@ -169,6 +203,7 @@ func (c Config) trimmed() Config {
 
 func (c Config) resolveRelativePaths(baseDir string) Config {
 	c.CodexDir = resolveRelativePath(baseDir, c.CodexDir)
+	c.ZCodeDBPath = resolveRelativePath(baseDir, c.ZCodeDBPath)
 	c.StatePath = resolveRelativePath(baseDir, c.StatePath)
 	if c.CodexConfigPath != "" {
 		c.CodexConfigPath = resolveRelativePath(baseDir, c.CodexConfigPath)

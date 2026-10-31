@@ -41,7 +41,7 @@ export function ClientInstallerCard(props: {
   enabledSources: string[]
 }) {
   const { t } = useTranslation()
-  const availableSources = clientCollectorSources.filter((source) =>
+  const enabledSources = clientCollectorSources.filter((source) =>
     props.enabledSources.includes(source)
   )
   const form = useForm<ClientInstallerFormInput>({
@@ -51,18 +51,19 @@ export function ClientInstallerCard(props: {
       auto_update: true,
     },
   })
-  const sourceKey = availableSources.join(',')
-  const includeClaude = availableSources.includes('claude_code')
   const platform = useWatch({ control: form.control, name: 'platform' })
   const autoUpdate = useWatch({ control: form.control, name: 'auto_update' })
   const userId = useAuthStore((state) => state.auth.user?.id)
   const options = useQuery({
     queryKey: ['external-usage-client-installer-options', userId],
     queryFn: getExternalUsageClientInstallerOptions,
-    enabled: props.canRequest && availableSources.length > 0,
+    enabled: props.canRequest && enabledSources.length > 0,
     staleTime: 30_000,
   })
   const signedReady = options.data?.automatic_updates_available === true
+  const availableSources = enabledSources.filter((source) => source !== 'zcode' || signedReady)
+  const sourceKey = availableSources.join(',')
+  const includeClaude = availableSources.includes('claude_code')
   const [command, setCommand] = useState('')
   const [expiresAt, setExpiresAt] = useState<number | null>(null)
   const requestGeneration = useRef(0)
@@ -116,7 +117,7 @@ export function ClientInstallerCard(props: {
         </CardDescription>
       </CardHeader>
       <CardContent className='flex flex-col gap-4'>
-        {availableSources.length === 0 ? (
+        {enabledSources.length === 0 ? (
           <Alert>
             <AlertDescription>
               {t(
@@ -160,11 +161,11 @@ export function ClientInstallerCard(props: {
             <FieldDescription>
               {t('Available collectors: {{clients}}', {
                 clients: availableSources
-                  .map((source) =>
-                    source === 'codex'
-                      ? 'Codex'
-                      : t('Claude Code (CLI and VS Code)')
-                  )
+                  .map((source) => {
+                    if (source === 'codex') return 'Codex'
+                    if (source === 'zcode') return 'ZCode'
+                    return t('Claude Code (CLI and VS Code)')
+                  })
                   .join(', '),
               })}
             </FieldDescription>
@@ -221,6 +222,11 @@ export function ClientInstallerCard(props: {
                 {t(
                   'Claude Code detects its API address automatically. Non-gateway usage is reported; this gateway and its configured aliases are excluded. Restart Claude Code CLI and VS Code sessions after installation.'
                 )}
+              </FieldDescription>
+            ) : null}
+            {enabledSources.includes('zcode') ? (
+              <FieldDescription>
+                {t('ZCode requires a compatible signed collector and verified provider routes. Unresolved usage stays on this device until its route is confirmed.')}
               </FieldDescription>
             ) : null}
             <Button

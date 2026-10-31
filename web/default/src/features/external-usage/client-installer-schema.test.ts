@@ -15,7 +15,7 @@ test('unified installer requires supported, unique client selections', () => {
       false
     )
   }
-  for (const sources of [['codex'], ['claude_code']]) {
+  for (const sources of [['codex'], ['claude_code'], ['zcode']]) {
     assert.equal(
       clientInstallerSchema.safeParse({ ...input, sources }).success,
       true
@@ -28,6 +28,8 @@ test('all client selections work without upstream fields', () => {
     ['codex'],
     ['claude_code'],
     ['codex', 'claude_code'],
+    ['zcode'],
+    ['codex', 'claude_code', 'zcode'],
   ]) {
     const values = { platform: 'windows', sources }
     assert.deepEqual(clientInstallerSchema.parse(values), values)

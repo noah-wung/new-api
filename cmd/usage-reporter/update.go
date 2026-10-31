@@ -14,11 +14,11 @@ import (
 	"github.com/QuantumNous/new-api/pkg/usagereporter"
 )
 
-func installClients(server, codexToken, claudeToken, keysPath, catalogPath string, automatic bool) error {
+func installClients(server, codexToken, claudeToken, zcodeToken, keysPath, catalogPath string, automatic bool) error {
 	if !strings.HasPrefix(server, "https://") {
 		return errors.New("managed installation requires HTTPS for credential exchange")
 	}
-	if codexToken == "" && claudeToken == "" {
+	if codexToken == "" && claudeToken == "" && zcodeToken == "" {
 		return errors.New("select at least one client")
 	}
 	var keys reporterupdate.TrustKeys
@@ -74,6 +74,12 @@ func installClients(server, codexToken, claudeToken, keysPath, catalogPath strin
 			profiles[len(profiles)-1].TaskName = "new-api-claude-usage-reporter"
 		}
 	}
+	if zcodeToken != "" {
+		profiles = append(profiles, reporterupdate.Profile{Source: usagereporter.SourceZCode, Config: filepath.Join(root, "zcode", "config.json"), TaskName: "pro.newapi.usage-reporter.zcode"})
+		if runtime.GOOS == "windows" {
+			profiles[len(profiles)-1].TaskName = "new-api-usage-reporter-zcode"
+		}
+	}
 	for _, p := range profiles {
 		cfg, e := usagereporter.LoadConfig(p.Config)
 		if os.IsNotExist(e) {
@@ -98,7 +104,7 @@ func installClients(server, codexToken, claudeToken, keysPath, catalogPath strin
 	if e = m.CanEnroll(server); e != nil {
 		return e
 	}
-	for _, path := range []string{filepath.Join(root, "config.json"), filepath.Join(root, "claude", "config.json")} {
+	for _, path := range []string{filepath.Join(root, "config.json"), filepath.Join(root, "claude", "config.json"), filepath.Join(root, "zcode", "config.json")} {
 		cfg, err := usagereporter.LoadConfig(path)
 		if os.IsNotExist(err) {
 			continue
@@ -129,10 +135,15 @@ func installClients(server, codexToken, claudeToken, keysPath, catalogPath strin
 		if e = reporterupdate.SecureDir(filepath.Dir(p.Config)); e != nil {
 			return e
 		}
-		if p.Source == usagereporter.SourceCodex {
+		switch p.Source {
+		case usagereporter.SourceCodex:
 			e = usagereporter.InstallCodexReporter(server, codexToken, p.Config)
-		} else {
+		case usagereporter.SourceClaudeCode:
 			e = usagereporter.InstallClaudeReporter(server, claudeToken, p.Config, settingsPath, usagereporter.ClaudeInstallOptions{HelperBinary: helper, RuntimeDir: m.Root, DeferTelemetry: true})
+		case usagereporter.SourceZCode:
+			e = usagereporter.InstallZCodeReporter(server, zcodeToken, p.Config)
+		default:
+			return errors.New("unsupported collector profile")
 		}
 		if e != nil {
 			return e

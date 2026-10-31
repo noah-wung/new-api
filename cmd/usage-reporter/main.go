@@ -31,6 +31,7 @@ func main() {
 func runReporter() (runErr error) {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	showVersion := flag.Bool("version", false, "Write reporter version information")
+	supportsSource := flag.String("supports-source", "", "Check whether this binary supports a collector source")
 	checkVersion := flag.Bool("check-version", false, "Check for a collector update and prompt for manual installation")
 	selfCheck := flag.Bool("self-check", false, "Read-only local configuration and queue compatibility check")
 	managed := flag.Bool("managed", false, "Enable private lifecycle control for a managed worker")
@@ -44,6 +45,7 @@ func runReporter() (runErr error) {
 	installAll := flag.Bool("install-clients", false, "Install selected collectors with signed update support")
 	codexInstallToken := flag.String("codex-install-token", "", "One-time Codex installation token")
 	claudeInstallToken := flag.String("claude-install-token", "", "One-time Claude installation token")
+	zcodeInstallToken := flag.String("zcode-install-token", "", "One-time ZCode installation token")
 	trustKeys := flag.String("trust-keys", "", "Trusted public keys JSON file")
 	catalogFile := flag.String("catalog", "", "Signed installation catalog file")
 	installAutomatic := flag.Bool("install-auto-update", true, "Enable automatic checks after installation")
@@ -54,7 +56,8 @@ func runReporter() (runErr error) {
 	credential := flag.String("credential", "", "Dedicated reporting credential")
 	source := flag.String("source", usagereporter.SourceCodex, "Usage source to report")
 	codexDir := flag.String("codex-dir", "~/.codex/sessions", "Codex sessions directory")
-	statePath := flag.String("state", "~/.new-api-usage-reporter/state.json", "Reporter state file")
+	zcodeDB := flag.String("zcode-db", "", "ZCode usage SQLite database")
+	statePath := flag.String("state", "", "Reporter state file (defaults per source)")
 	serve := flag.Bool("serve", false, "Run a streaming usage collector until interrupted")
 	configureClaude := flag.Bool("configure-claude", false, "Merge telemetry into Claude user settings and exit")
 	claudeSettings := flag.String("claude-settings", "", "Claude user settings.json (defaults to CLAUDE_CONFIG_DIR/settings.json or ~/.claude/settings.json)")
@@ -62,6 +65,7 @@ func runReporter() (runErr error) {
 	claudeHeaders := flag.Bool("claude-otel-headers", false, "Emit runtime Claude telemetry routing headers")
 	installClaude := flag.Bool("install-claude", false, "Exchange a one-time Claude install token and configure telemetry")
 	installCodex := flag.Bool("install-codex", false, "Exchange an installation token, preserving existing Codex configuration")
+	installZCode := flag.Bool("install-zcode", false, "Exchange a ZCode installation token")
 	installToken := flag.String("install-token", "", "One-time client installer token")
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
 		return err
@@ -106,13 +110,30 @@ func runReporter() (runErr error) {
 		fmt.Printf("%s %s %s %s\n", reporterupdate.Version, reporterupdate.Commit, reporterupdate.BuildReleaseID, reporterupdate.SchemaDescription())
 		return nil
 	}
+	if *supportsSource != "" {
+		switch *supportsSource {
+		case usagereporter.SourceCodex, usagereporter.SourceClaudeCode, usagereporter.SourceZCode:
+			return nil
+		default:
+			return errors.New("unsupported collector source")
+		}
+	}
 	if *installAll {
-		return installClients(*server, *codexInstallToken, *claudeInstallToken, *trustKeys, *catalogFile, *installAutomatic)
+		return installClients(*server, *codexInstallToken, *claudeInstallToken, *zcodeInstallToken, *trustKeys, *catalogFile, *installAutomatic)
 	}
 	if *updateCheck || *updateNow || *updateApply != "" || *updateRecover || *autoUpdate != "" {
 		return runUpdate(*runtimePath, *updateApply, *updateCheck || *updateNow, *updateRecover, *updateNow, *autoUpdate)
 	}
-	if *installClaude || *installCodex {
+	if *installClaude || *installCodex || *installZCode {
+		selected := 0
+		for _, value := range []bool{*installClaude, *installCodex, *installZCode} {
+			if value {
+				selected++
+			}
+		}
+		if selected != 1 {
+			return errors.New("select exactly one installation source")
+		}
 		if *configPath == "" || *server == "" || *installToken == "" {
 			return errors.New("installation requires --server, --install-token and --config")
 		}
@@ -138,6 +159,9 @@ func runReporter() (runErr error) {
 		if *installCodex {
 			return usagereporter.InstallCodexReporter(*server, *installToken, path)
 		}
+		if *installZCode {
+			return usagereporter.InstallZCodeReporter(*server, *installToken, path)
+		}
 		settings := *claudeSettings
 		if settings == "" {
 			dir := os.Getenv("CLAUDE_CONFIG_DIR")
@@ -158,11 +182,12 @@ func runReporter() (runErr error) {
 	}
 
 	overrideConfig := usagereporter.Config{
-		Server:     *server,
-		Source:     *source,
-		Credential: *credential,
-		CodexDir:   *codexDir,
-		StatePath:  *statePath,
+		Server:      *server,
+		Source:      *source,
+		Credential:  *credential,
+		CodexDir:    *codexDir,
+		ZCodeDBPath: *zcodeDB,
+		StatePath:   *statePath,
 	}.WithDefaults()
 	expandedConfigPath := ""
 	explicitFlags := make(map[string]bool)

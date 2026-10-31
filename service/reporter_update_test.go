@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,6 +107,21 @@ func TestManagedInstallerRequiresSignedReleaseAndUsesOnlySelectedTokens(t *testi
 	}
 	_, e := BuildClientInstallScript(BuildInstallScriptParams{Managed: true, AutoUpdate: true, Platform: "macos", ServiceURL: "http://gateway.example"}, ClientInstallTokens{Codex: "token"})
 	assert.Error(t, e)
+}
+
+func TestManagedZCodeInstallerChecksCapabilityBeforeExchange(t *testing.T) {
+	setupReporterUpdateTables(t)
+	f := createSignedReleaseFixture(t)
+	require.NoError(t, ActivateReporterRelease(f.catalog.ReleaseID, 17))
+	for _, platform := range []string{"macos", "windows"} {
+		script, err := BuildClientInstallScript(BuildInstallScriptParams{Managed: true, Platform: platform, ServiceURL: "https://gateway.example"}, ClientInstallTokens{ZCode: "zcode-token"})
+		require.NoError(t, err)
+		require.Contains(t, script, "--supports-source zcode")
+		require.Contains(t, script, "--zcode-install-token")
+		require.Less(t, strings.Index(script, "--supports-source zcode"), strings.Index(script, "--install-clients"))
+	}
+	_, err := BuildClientInstallScript(BuildInstallScriptParams{Platform: "macos", ServiceURL: "https://gateway.example"}, ClientInstallTokens{ZCode: "zcode-token"})
+	require.Error(t, err)
 }
 func TestCodexReinstallPreservesCredentialAndRejectsAccountChanges(t *testing.T) {
 	setupExternalUsageTestTables(t)

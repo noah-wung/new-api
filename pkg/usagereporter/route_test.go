@@ -44,3 +44,37 @@ func TestReporterRechecksQueuedRouteAliasesUsingSharedPolicy(t *testing.T) {
 	assert.Zero(t, stats.Sent)
 	assert.NoFileExists(t, reporter.queueDir+"/"+event.Event.EventID+".json")
 }
+
+func TestRoutePolicyExcludesExactGatewayHostAcrossPorts(t *testing.T) {
+	policy, err := NewRoutePolicy("https://report.example", nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, policy.AddGatewayHosts([]string{" TOKEN.einyun.com. "}))
+	for _, endpoint := range []string{"https://token.einyun.com", "https://TOKEN.EINYUN.COM:8443/v1", "http://token.einyun.com:8080/v1", "https://token.einyun.com.:443"} {
+		allowed, err := policy.Allows(endpoint)
+		require.NoError(t, err)
+		assert.False(t, allowed, endpoint)
+	}
+	for _, endpoint := range []string{"https://token.einyun.com.attacker.test", "https://other.einyun.com"} {
+		allowed, err := policy.Allows(endpoint)
+		require.NoError(t, err)
+		assert.True(t, allowed, endpoint)
+	}
+	for _, hostname := range []string{"https://token.einyun.com", "token.einyun.com:443", "*.einyun.com", "token.einyun.com/path", "bad_host"} {
+		assert.Error(t, policy.AddGatewayHosts([]string{hostname}), hostname)
+	}
+}
+
+func TestReporterRechecksQueuedGatewayHostAcrossPorts(t *testing.T) {
+	cfg := ReporterConfig{Source: "zcode", Server: "https://report.example", Credential: "fixture", StatePath: t.TempDir() + "/state.json"}
+	reporter, err := NewReporter(cfg)
+	require.NoError(t, err)
+	event := reporterTestEvent("gateway-host", "https://token.einyun.com:8443")
+	require.NoError(t, reporter.Record(event))
+	cfg.GatewayHosts = []string{"token.einyun.com"}
+	restarted, err := NewReporter(cfg)
+	require.NoError(t, err)
+	stats, err := restarted.FlushContext(t.Context())
+	require.NoError(t, err)
+	assert.Zero(t, stats.Sent)
+	assert.NoFileExists(t, reporter.queueDir+"/"+event.Event.EventID+".json")
+}

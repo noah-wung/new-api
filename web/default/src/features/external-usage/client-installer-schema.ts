@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { claudeInstallerSchema } from './claude-installer-schema'
 
-export const clientCollectorSources = ['codex', 'claude_code'] as const
+export const clientCollectorSources = ['codex', 'claude_code', 'zcode'] as const
 
 export const clientInstallerSchema = z.object({
   platform: claudeInstallerSchema.shape.platform,
@@ -11,7 +11,7 @@ export const clientInstallerSchema = z.object({
   sources: z
     .array(z.enum(clientCollectorSources))
     .min(1)
-    .max(2)
+    .max(3)
     .refine((sources) => new Set(sources).size === sources.length),
 })
 

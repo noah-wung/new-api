@@ -12,6 +12,7 @@ import (
 // accepts known non-gateway origins; an empty list accepts no external origins.
 type RoutePolicy struct {
 	gateways           map[string]bool
+	gatewayHosts       map[string]bool
 	external           map[string]bool
 	allowKnownExternal bool
 	excludedRoutes     map[string]bool
@@ -20,7 +21,7 @@ type RoutePolicy struct {
 var ErrUnapprovedRoute = errors.New("upstream is not an approved external route")
 
 func NewRoutePolicy(server string, gateways, external []string, excludedRoutes ...string) (*RoutePolicy, error) {
-	policy := &RoutePolicy{gateways: make(map[string]bool), external: make(map[string]bool), allowKnownExternal: external == nil, excludedRoutes: make(map[string]bool)}
+	policy := &RoutePolicy{gateways: make(map[string]bool), gatewayHosts: make(map[string]bool), external: make(map[string]bool), allowKnownExternal: external == nil, excludedRoutes: make(map[string]bool)}
 	for _, id := range excludedRoutes {
 		policy.excludedRoutes[id] = true
 	}
@@ -44,6 +45,29 @@ func NewRoutePolicy(server string, gateways, external []string, excludedRoutes .
 	return policy, nil
 }
 
+// AddGatewayHosts excludes exact DNS names for every HTTP(S) scheme and port.
+// Host names are explicit rules; subdomains and unrelated suffixes do not match.
+func (p *RoutePolicy) AddGatewayHosts(hosts []string) error {
+	for _, raw := range hosts {
+		host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(raw)), ".")
+		if len(host) == 0 || len(host) > 253 {
+			return errors.New("invalid gateway hostname")
+		}
+		for _, label := range strings.Split(host, ".") {
+			if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+				return errors.New("invalid gateway hostname")
+			}
+			for _, ch := range label {
+				if ch != '-' && (ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') {
+					return errors.New("invalid gateway hostname")
+				}
+			}
+		}
+		p.gatewayHosts[host] = true
+	}
+	return nil
+}
+
 // Allows returns false for a gateway, and an error for missing or unapproved
 // route evidence. Model names never participate in route classification.
 func (p *RoutePolicy) Allows(value string, routeIDs ...string) (bool, error) {
@@ -57,6 +81,13 @@ func (p *RoutePolicy) Allows(value string, routeIDs ...string) (bool, error) {
 		return false, ErrUnapprovedRoute
 	}
 	if p.gateways[origin] {
+		return false, nil
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false, ErrUnapprovedRoute
+	}
+	if p.gatewayHosts[strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")] {
 		return false, nil
 	}
 	if p.allowKnownExternal || p.external[origin] {

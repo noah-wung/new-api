@@ -22,6 +22,8 @@ func setupExternalUsageTestTables(t *testing.T) {
 		&model.ExternalUsageCursorEvent{},
 		&model.ExternalUsageReportBatch{},
 		&model.ExternalUsageClientEvent{},
+		&model.ZCodeUsageLock{},
+		&model.ZCodeUsageIdentity{},
 		&model.ExternalUsageAggregate{},
 		&model.ExternalUsageModelMapping{},
 	); err != nil {
@@ -33,6 +35,8 @@ func setupExternalUsageTestTables(t *testing.T) {
 		model.DB.Exec("DELETE FROM external_usage_report_batches")
 		model.DB.Exec("DELETE FROM external_usage_cursor_events")
 		model.DB.Exec("DELETE FROM external_usage_client_events")
+		model.DB.Exec("DELETE FROM z_code_usage_identities")
+		model.DB.Exec("DELETE FROM z_code_usage_locks")
 		model.DB.Exec("DELETE FROM external_usage_aggregates")
 		model.DB.Exec("DELETE FROM external_usage_cursor_import_batches")
 		model.DB.Exec("DELETE FROM external_usage_devices")

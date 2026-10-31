@@ -27,14 +27,20 @@ var (
 // Nil ExternalURLs allows known non-gateway origins; [] denies every external origin.
 type ReporterConfig struct {
 	QueueCapacity    int
+	StopOnQueueFull  bool
 	Source           string
 	Server           string
 	Credential       string
 	StatePath        string
 	AcceptWindowDays int
 	GatewayURLs      []string
+	GatewayHosts     []string
 	ExternalURLs     []string
 	ExcludedRoutes   []string
+	// RecheckRoute can defer a queued event when source-specific historical
+	// evidence no longer proves the original upstream route.
+	RecheckRoute func(CollectedEvent) (bool, error)
+	OnResult     func(string, string) error
 }
 
 type ReportStats struct {
@@ -90,6 +96,9 @@ func openReporter(cfg ReporterConfig, queueRoot string) (*Reporter, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := policy.AddGatewayHosts(cfg.GatewayHosts); err != nil {
+		return nil, err
+	}
 	namespace := sha256Hex(serverIdentity(cfg.Server) + "\x00" + cfg.Credential)
 	dir := filepath.Join(queueRoot, namespace)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -122,7 +131,7 @@ func (c *Reporter) Report(ctx context.Context, collection Collection) (ReportSta
 			return stats, err
 		}
 		err := c.Record(event)
-		if errors.Is(err, ErrQueueFull) {
+		if errors.Is(err, ErrQueueFull) && !c.cfg.StopOnQueueFull {
 			partial, flushErr := c.FlushContext(ctx)
 			stats.add(partial)
 			if flushErr != nil {
@@ -292,11 +301,27 @@ func (c *Reporter) FlushContext(ctx context.Context) (stats ReportStats, flushEr
 			continue
 		}
 		if !allowed {
+			if c.cfg.OnResult != nil {
+				if err := c.cfg.OnResult(queued.Event.EventID, "excluded"); err != nil {
+					c.mu.Unlock()
+					return stats, err
+				}
+			}
 			if err := os.Remove(path); err != nil {
 				c.mu.Unlock()
 				return stats, err
 			}
 			continue
+		}
+		if c.cfg.RecheckRoute != nil {
+			stillAllowed, err := c.cfg.RecheckRoute(queued)
+			if err != nil {
+				c.mu.Unlock()
+				return stats, err
+			}
+			if !stillAllowed {
+				continue
+			}
 		}
 		payload.Events = append(payload.Events, queued.Event)
 		payload.ClientVersion = queued.ClientVersion
@@ -336,11 +361,23 @@ func (c *Reporter) FlushContext(ctx context.Context) (stats ReportStats, flushEr
 		}
 		for _, id := range ack.AcceptedEventIDs {
 			if batchPaths[id] != "" {
+				if c.cfg.OnResult != nil {
+					if err := c.cfg.OnResult(id, "accepted"); err != nil {
+						c.mu.Unlock()
+						return stats, err
+					}
+				}
 				stats.Accepted++
 			}
 		}
 		for _, id := range ack.DuplicateEventIDs {
 			if batchPaths[id] != "" {
+				if c.cfg.OnResult != nil {
+					if err := c.cfg.OnResult(id, "duplicate"); err != nil {
+						c.mu.Unlock()
+						return stats, err
+					}
+				}
 				stats.Duplicate++
 			}
 		}
@@ -354,6 +391,12 @@ func (c *Reporter) FlushContext(ctx context.Context) (stats ReportStats, flushEr
 		}
 		for _, rejection := range ack.Rejected {
 			if path := batchPaths[rejection.EventID]; path != "" {
+				if c.cfg.OnResult != nil {
+					if err := c.cfg.OnResult(rejection.EventID, "rejected"); err != nil {
+						c.mu.Unlock()
+						return stats, err
+					}
+				}
 				stats.Rejected++
 				// Preserve rejected usage for diagnosis without a retry loop. Do
 				// not persist arbitrary response text returned by a remote server.
