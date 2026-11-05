@@ -12,7 +12,9 @@
 
 数据库依次使用 `--zcode-db`、配置文件 `zcode_db_path`、`ZCODE_SESSION_DB_PATH`、`ZCODE_SESSION_DB`，默认 `~/.zcode/cli/db/db.sqlite`。采集器只读打开数据库并读取 WAL，不创建缺失数据库，不读取消息、原始 usage 或认证字段。`--self-check --config <path>` 只读检查本地源和队列，不上传、不改状态。
 
-ZCode 的路由历史不能仅靠当前 provider 配置推断。管理员或用户应依据可核实的请求期证据，在独立 ZCode 配置中指定 provider 与时间区间；秒级 Unix 时间区间 `[from, until)`，下例为示意值，不代表实际服务或授权：
+采集器默认读取 `~/.zcode/v2/config.json` 中 `provider.<provider_id>.options.baseURL`，按当前配置为历史和新记录分类。可用 `zcode_provider_config_path` 覆盖位置；相对路径以采集器配置文件所在目录为基准。该文件可能包含密钥，采集器只提取 Base URL，不输出或上传文件、密钥、provider ID 或上游地址。
+
+默认以当前 provider 配置分类历史记录，这是明确采用的计量策略，不证明历史请求实际使用过当前地址。如果同一个 provider 曾从网关切换到直连或反向切换，历史用量可能被重复计量或漏计。若当前配置中已找不到某个 provider，可使用已核实的时间区间作为兼容回退；缺失或无效的地址保持 unresolved。下例为示意值：
 
 ```json
 {
@@ -21,6 +23,7 @@ ZCode 的路由历史不能仅靠当前 provider 配置推断。管理员或用�
   "credential": "<reporting credential>",
   "state_path": "~/.new-api-usage-reporter/zcode/state.json",
   "zcode_db_path": "~/.zcode/cli/db/db.sqlite",
+  "zcode_provider_config_path": "~/.zcode/v2/config.json",
   "gateway_urls": ["https://gateway-alias.example"],
   "zcode_gateway_hosts": ["token.einyun.com"],
   "zcode_excluded_providers": ["internal-gateway"],
@@ -30,9 +33,9 @@ ZCode 的路由历史不能仅靠当前 provider 配置推断。管理员或用�
 }
 ```
 
-`zcode_gateway_hosts` 按精确主机名排除网关，覆盖 HTTP、HTTPS 和所有端口，不自动匹配子域名。这个规则不会证明历史记录的请求地址；仍需要请求期间有效的 provider 路由证据。
+采集器把上报服务的主机名作为网关排除，覆盖 HTTP、HTTPS 和所有端口；`zcode_gateway_hosts` 可以补充其他网关主机名，按精确主机名匹配，不自动匹配子域名。`gateway_urls` 仍可指定其他网关 origin。当前配置中不存在的 provider 若列在 `zcode_excluded_providers`，则排除。
 
-仅当同一条路由证据覆盖请求从 started_at 到 completed_at 的整个区间时才允许上报；跨路由切换、重叠、不完整或不可信的路由证据不作外部上报；服务地址、网关别名和明确排除的 provider 优先排除。未知路由保存最小快照，补充有效映射后可在源行清理后重放。配置和状态包含本地路由信息，应按私有文件保护；上报 payload 不含上游地址、provider、路径或凭据。修改映射时应核实历史生效时段，不能把当前配置自动套用于安装前请求。
+当前配置中有 provider 时使用其 Base URL，即使旧配置中存在该 provider 的排除规则；若地址无效，不回退旧映射。仅当当前配置中没有该 provider 时，使用旧排除规则，或覆盖请求完整区间且不重叠的 `zcode_provider_routes`。未知路由保存最小快照，补充有效映射后可在源行清理后重放。已有待发送队列在重试前重新检查当前路由；已确认的用量不会因配置变化而自动更正或重复上报。配置和状态包含本地路由信息，应按私有文件保护；上报 payload 不含上游地址、provider、路径或凭据。
 
 只计 `input + output`，缓存读和 reasoning 分别是输入和输出的子集；缓存写仍在 input 中，不额外相加。正用量终态按调用行计量，零用量不提交。数据库允许同 ID 更新；进入持有状态后观察到的改变保存冲突，不生成新 ID 或自动更正。异常计量保存在本地隔离状态，并显示计数。本地快照区分已扫描、已入队与服务器 accepted/duplicate/rejected；缺少 ACK 的事件保留在队列。队列和快照各有 10,000 条上限；容量不足停止处理并报告，不能扩大限制或假称完整。当前快照不会自动清理，长期使用可能触及上限；部署前需要制定经验证的归档或清理机制。
 
@@ -40,7 +43,7 @@ ZCode 的路由历史不能仅靠当前 provider 配置推断。管理员或用�
 
 ZCode 仅允许签名托管安装，单独使用 `~/.new-api-usage-reporter/zcode/` 配置和状态；使用用户级调度，不配置 ZCode telemetry 或接收端口。合并安装仍为每个来源生成独立的一次性授权；设备上限沿用服务器设置。下载的二进制先执行 `--supports-source zcode`，不支持时不会兑换 ZCode token。该检查与签名验证均需通过；旧二进制不具备 ZCode 能力。
 
-源库本地保留期与服务器接受窗口不同，源数据已经清理时不能保证补齐。仅有当前路由配置不能证明历史链路，首次安装后应检查 unresolved、excluded、invalid 和 conflict 计数；不要在未核实路由时将其标为外部。
+源库本地保留期与服务器接受窗口不同，源数据已经清理时不能保证补齐。当前配置可能与历史链路不同，首次安装后应检查 unresolved、excluded、invalid 和 conflict 计数。当前路径和结构已在 macOS 桌面版验证，Windows、独立 CLI 和远端 Agent 尚需原生验证。
 
 凭据或服务器变更时，采集器拒绝自动切换状态及队列命名空间。保留原配置、状态与整个队列，先核对并处理待确认/拒收记录，再制定显式迁移步骤；不可删除旧队列或新建身份后假定已迁移。回滚到不认识 ZCode 的二进制时，应暂停该 profile 并保留配置、状态和队列；不能让旧程序继续运行该任务。Codex/Claude profile 和队列不属于本次迁移范围。
 

@@ -5,18 +5,42 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const SourceZCode = "zcode"
 
-func checkZCodeLocalData(cfg Config) error {
+func zcodeRoutePolicy(cfg Config) (*RoutePolicy, error) {
 	policy, err := NewRoutePolicy(cfg.Server, cfg.GatewayURLs, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := policy.AddGatewayHosts(cfg.ZCodeGatewayHosts); err != nil {
+		return nil, err
+	}
+	server, err := url.Parse(cfg.Server)
+	if err != nil || server.Hostname() == "" {
+		return nil, errors.New("invalid reporter server URL")
+	}
+	host := server.Hostname()
+	if net.ParseIP(host) != nil {
+		policy.gatewayHosts[strings.ToLower(host)] = true
+	} else if err := policy.AddGatewayHosts([]string{host}); err != nil {
+		return nil, err
+	}
+	return policy, nil
+}
+
+func checkZCodeLocalData(cfg Config) error {
+	_, err := zcodeRoutePolicy(cfg)
 	if err != nil {
 		return err
 	}
-	if err := policy.AddGatewayHosts(cfg.ZCodeGatewayHosts); err != nil {
+	if _, err := loadZCodeProviderOrigins(cfg.ZCodeProviderConfigPath); err != nil {
 		return err
 	}
 	_, err = readZCodeUsagePage(context.Background(), cfg.ZCodeDBPath, 0, 1)
@@ -50,11 +74,12 @@ func runZCodeCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 			return errors.New("a previous ZCode queue namespace exists; migrate it explicitly before changing credentials")
 		}
 	}
-	policy, err := NewRoutePolicy(cfg.Server, cfg.GatewayURLs, nil)
+	policy, err := zcodeRoutePolicy(cfg)
 	if err != nil {
 		return err
 	}
-	if err := policy.AddGatewayHosts(cfg.ZCodeGatewayHosts); err != nil {
+	currentRoutes, err := loadZCodeProviderOrigins(cfg.ZCodeProviderConfigPath)
+	if err != nil {
 		return err
 	}
 	window := buildClientAcceptWindow(cfg.AcceptWindowDays)
@@ -110,7 +135,7 @@ func runZCodeCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 		if !ok || snapshot.Conflict != nil || snapshot.Event != event.Event {
 			return false, nil
 		}
-		origin, allowed, resolved, err := resolveZCodeRoute(policy, cfg.ZCodeProviderRoutes, cfg.ZCodeExcludedProviders, snapshot.ProviderID, snapshot.StartedAt, snapshot.Event.OccurredAt)
+		origin, allowed, resolved, err := resolveZCodeCurrentRoute(policy, currentRoutes, cfg.ZCodeProviderRoutes, cfg.ZCodeExcludedProviders, snapshot.ProviderID, snapshot.StartedAt, snapshot.Event.OccurredAt)
 		return err == nil && resolved && allowed && origin == event.Origin, err
 	}
 	onResult := func(id, result string) error {
@@ -144,7 +169,7 @@ func runZCodeCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 		if snapshot.Submitted {
 			continue
 		}
-		origin, allowed, resolved, err := resolveZCodeRoute(policy, cfg.ZCodeProviderRoutes, cfg.ZCodeExcludedProviders, snapshot.ProviderID, snapshot.StartedAt, snapshot.Event.OccurredAt)
+		origin, allowed, resolved, err := resolveZCodeCurrentRoute(policy, currentRoutes, cfg.ZCodeProviderRoutes, cfg.ZCodeExcludedProviders, snapshot.ProviderID, snapshot.StartedAt, snapshot.Event.OccurredAt)
 		if err != nil {
 			return err
 		}

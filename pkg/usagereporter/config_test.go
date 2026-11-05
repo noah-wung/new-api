@@ -42,6 +42,25 @@ func TestLoadConfig_PreservesExistingStatePath(t *testing.T) {
 	}
 }
 
+func TestZCodeProviderConfigPathSurvivesSaveAndResolvesRelativeToConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	base := Config{Server: "https://example.test", Source: SourceZCode, Credential: "fixture", ZCodeProviderConfigPath: "routing/providers.json"}
+	if err := SaveConfig(path, base); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveConfig(path, Config{Server: base.Server, Source: base.Source, Credential: base.Credential}); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(dir, "routing/providers.json"); loaded.ZCodeProviderConfigPath != want {
+		t.Fatalf("provider config path = %q, want %q", loaded.ZCodeProviderConfigPath, want)
+	}
+}
+
 func TestLoadConfig_AppliesDefaultsAndTrimsValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(path, []byte(`{"server":" https://example.test/ ","credential":" cred-1 "}`), 0o644); err != nil {

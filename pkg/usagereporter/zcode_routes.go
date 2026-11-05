@@ -14,6 +14,24 @@ type ZCodeProviderRoute struct {
 	Until      int64  `json:"until"`
 }
 
+// Current provider configuration is the user-selected source of truth for
+// historical records. Previously configured exclusions and time-bounded
+// routes remain a fallback for providers no longer in the current config.
+func resolveZCodeCurrentRoute(policy *RoutePolicy, current map[string]string, routes []ZCodeProviderRoute, excluded []string, provider string, startedAt, occurredAt int64) (string, bool, bool, error) {
+	provider = strings.TrimSpace(provider)
+	if origin, exists := current[provider]; exists {
+		if origin == "" || policy == nil || startedAt <= 0 || occurredAt < startedAt {
+			return "", false, false, nil
+		}
+		allowed, err := policy.Allows(origin, sha256Hex(provider))
+		if errors.Is(err, ErrUnapprovedRoute) {
+			return "", false, false, nil
+		}
+		return origin, allowed, err == nil, err
+	}
+	return resolveZCodeRoute(policy, routes, excluded, provider, startedAt, occurredAt)
+}
+
 // resolveZCodeRoute never infers a historic route from a current configuration.
 // An explicit provider exclusion is decisive, as is a gateway origin. Ambiguous
 // or incomplete evidence stays unresolved rather than being reported.
