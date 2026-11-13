@@ -38,6 +38,10 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+          general_setting: {
+            stream_no_data_timeout_seconds:
+              settings['general_setting.stream_no_data_timeout_seconds'],
+          },
         }}
       />
     ),

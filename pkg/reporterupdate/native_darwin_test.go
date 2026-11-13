@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -186,4 +187,130 @@ func TestNativeDarwinSignedUpdateKeepsStateAndCompletesCollectorRun(t *testing.T
 	files, e := os.ReadDir(queue)
 	require.NoError(t, e)
 	assert.Len(t, files, 1, "updated Claude process must persist the external event")
+}
+
+// This opt-in test waits for an actual five-minute LaunchAgent interval. Its
+// source, server, runtime, credentials and task labels are all isolated.
+func TestNativeDarwinZCodeSignedUpdateAndScheduledReport(t *testing.T) {
+	if os.Getenv("NEW_API_TEST_NATIVE_ZCODE") != "1" {
+		t.Skip("opt-in native ZCode scheduling integration")
+	}
+	root := t.TempDir()
+	m, err := NewManager(filepath.Join(root, "runtime"))
+	require.NoError(t, err)
+	p := &isolatedDarwinTasks{base: m.platform.(*nativePlatform), prefix: "pro.newapi.test." + randomID()[:8] + ".", names: map[string]bool{}}
+	p.base.agents = filepath.Join(root, "agents")
+	m.platform = p
+	t.Cleanup(func() {
+		for name := range p.names {
+			_ = p.base.Delete(name)
+		}
+	})
+	project, err := filepath.Abs(filepath.Join("..", ".."))
+	require.NoError(t, err)
+	build := func(id, version string) []byte {
+		path := filepath.Join(m.Root, "releases", id, m.Target, "usage-reporter")
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		cmd := exec.Command("go", "build", "-ldflags", "-X github.com/QuantumNous/new-api/pkg/reporterupdate.Version="+version+" -X github.com/QuantumNous/new-api/pkg/reporterupdate.BuildReleaseID="+id, "-o", path, "./cmd/usage-reporter")
+		cmd.Dir = project
+		out, e := cmd.CombinedOutput()
+		require.NoError(t, e, string(out))
+		data, e := os.ReadFile(path)
+		require.NoError(t, e)
+		return data
+	}
+	oldBytes := build("zcode-old", "1.0.0")
+	newBytes := build("zcode-new", "1.1.0")
+	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	keys := TrustKeys{"test-key": base64.StdEncoding.EncodeToString(pub)}
+	catalog := Catalog{SchemaVersion: 1, Sequence: 1, IssuedAt: time.Now().Add(-time.Minute).Unix(), ExpiresAt: time.Now().Add(20 * time.Minute).Unix(), ReleaseID: "zcode-new", Version: "1.1.0", Commit: "development", Protocol: Range{1, 1}, Config: Range{1, 1}, State: Range{2, 2}, Queue: Range{1, 1}, RolloutPercent: 100, RolloutSeed: "test"}
+	for _, target := range []string{"darwin-arm64", "darwin-amd64", "windows-amd64"} {
+		name, _ := TargetName(target)
+		catalog.Targets = append(catalog.Targets, Artifact{Target: target, Path: "/api/external-usage/reporter/releases/zcode-new/" + target + "/" + name, SHA256: Digest(newBytes), Size: int64(len(newBytes))})
+	}
+	envelope, err := Sign(catalog, "test-key", key)
+	require.NoError(t, err)
+	reports := make(chan usagereporter.ReportPayload, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/stable"):
+			_, _ = w.Write(envelope)
+		case strings.Contains(r.URL.Path, "/releases/"):
+			_, _ = w.Write(newBytes)
+		case r.URL.Path == "/api/external-usage/report":
+			var payload usagereporter.ReportPayload
+			if common.DecodeJson(r.Body, &payload) != nil {
+				http.Error(w, "bad request", http.StatusBadRequest)
+				return
+			}
+			reports <- payload
+			var ids []string
+			for _, event := range payload.Events {
+				ids = append(ids, event.EventID)
+			}
+			body, _ := common.Marshal(map[string]any{"success": true, "data": usagereporter.ReportAcknowledgement{AcceptedEventIDs: ids}})
+			_, _ = w.Write(body)
+		default:
+			_, _ = w.Write([]byte(`{"success":true,"data":{"external_usage_accept_window_days":90}}`))
+		}
+	}))
+	defer server.Close()
+	dbPath := filepath.Join(root, "zcode.sqlite")
+	db, err := sql.Open("sqlite", dbPath)
+	require.NoError(t, err)
+	defer db.Close()
+	_, err = db.Exec(`CREATE TABLE model_usage (id TEXT PRIMARY KEY, session_id TEXT, provider_id TEXT, model_id TEXT, status TEXT, started_at INTEGER, completed_at INTEGER, input_tokens INTEGER, output_tokens INTEGER, reasoning_tokens INTEGER, cache_creation_input_tokens INTEGER, cache_read_input_tokens INTEGER, computed_total_tokens INTEGER)`)
+	require.NoError(t, err)
+	insert := func(id, provider string, input int) {
+		now := time.Now().UnixMilli()
+		_, e := db.Exec(`INSERT INTO model_usage VALUES (?, 'session', ?, 'fixture-model', 'completed', ?, ?, ?, 5, 0, 0, 0, ?)`, id, provider, now, now, input, input+5)
+		require.NoError(t, e)
+	}
+	insert("first", "external", 10)
+	insert("gateway", "gateway", 20)
+	insert("unknown", "unknown", 30)
+	providerPath := filepath.Join(root, "providers.json")
+	require.NoError(t, os.WriteFile(providerPath, []byte(`{"provider":{"external":{"options":{"baseURL":"https://external.example"}},"gateway":{"options":{"baseURL":"https://token.einyun.com"}}}}`), 0o600))
+	config := filepath.Join(root, "zcode", "config.json")
+	require.NoError(t, SecureDir(filepath.Dir(config)))
+	cfg := usagereporter.Config{Server: server.URL, Source: usagereporter.SourceZCode, Credential: "fixture", ZCodeDBPath: dbPath, ZCodeProviderConfigPath: providerPath, ZCodeGatewayHosts: []string{"token.einyun.com"}, StatePath: filepath.Join(root, "zcode", "state.json"), AcceptWindowDays: 90}
+	require.NoError(t, usagereporter.SaveConfig(config, cfg))
+	profile := Profile{Source: usagereporter.SourceZCode, Config: config, TaskName: "test-zcode"}
+	old := Release{ID: "zcode-old", Version: "1.0.0", Binary: filepath.Join(m.Root, "releases", "zcode-old", m.Target, "usage-reporter"), SHA256: Digest(oldBytes)}
+	task, err := p.Definition(profile.TaskName, old.Binary, workerArguments(profile, "old"), 5, false)
+	require.NoError(t, err)
+	require.NoError(t, p.Install(task))
+	updater, err := p.Definition(updaterTask, old.Binary, []string{"--update-check", "--runtime", m.Root}, 15, false)
+	require.NoError(t, err)
+	require.NoError(t, p.Install(updater))
+	require.NoError(t, Save(filepath.Join(m.Root, "installation.json"), Installation{Schema: 1, ID: "test-install", Server: server.URL, Keys: keys, AutoUpdate: true, Profiles: []Profile{profile}, Current: old}))
+	id, err := m.CheckAndPrepare(context.Background(), true)
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+	require.NoError(t, m.Apply(context.Background(), id))
+	select {
+	case report := <-reports:
+		require.Equal(t, usagereporter.SourceZCode, report.Source)
+		require.Len(t, report.Events, 1)
+		require.Equal(t, 10, report.Events[0].InputTokens)
+	case <-time.After(15 * time.Second):
+		t.Fatal("updated ZCode task did not report the initial external event")
+	}
+	insert("second", "external", 40)
+	select {
+	case report := <-reports:
+		require.Len(t, report.Events, 1)
+		require.Equal(t, 40, report.Events[0].InputTokens, "scheduled run must send only the new external event")
+	case <-time.After(6 * time.Minute):
+		t.Fatal("five-minute LaunchAgent interval did not report the new event")
+	}
+	current, state, err := m.read()
+	require.NoError(t, err)
+	require.Equal(t, "zcode-new", current.Current.ID)
+	require.Equal(t, "committed", state.Phase)
+	actual, err := usagereporter.LoadConfig(config)
+	require.NoError(t, err)
+	require.Equal(t, cfg.Credential, actual.Credential)
+	require.Equal(t, cfg.StatePath, actual.StatePath)
 }

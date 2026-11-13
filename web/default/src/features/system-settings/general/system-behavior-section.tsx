@@ -47,9 +47,33 @@ const behaviorSchema = z.object({
   DefaultCollapseSidebar: z.boolean(),
   DemoSiteEnabled: z.boolean(),
   SelfUseModeEnabled: z.boolean(),
+  general_setting: z.object({
+    stream_no_data_timeout_seconds: z.coerce.number().min(0),
+  }),
 })
 
 type BehaviorFormValues = z.infer<typeof behaviorSchema>
+
+// Dotted option keys as accepted by the options API — RHF nests dotted field
+// names into objects, so flatten before diffing/saving.
+type NormalizedBehaviorValues = {
+  RetryTimes: number
+  DefaultCollapseSidebar: boolean
+  DemoSiteEnabled: boolean
+  SelfUseModeEnabled: boolean
+  'general_setting.stream_no_data_timeout_seconds': number
+}
+
+const normalizeFormValues = (
+  values: BehaviorFormValues
+): NormalizedBehaviorValues => ({
+  RetryTimes: values.RetryTimes,
+  DefaultCollapseSidebar: values.DefaultCollapseSidebar,
+  DemoSiteEnabled: values.DemoSiteEnabled,
+  SelfUseModeEnabled: values.SelfUseModeEnabled,
+  'general_setting.stream_no_data_timeout_seconds':
+    values.general_setting.stream_no_data_timeout_seconds,
+})
 
 type SystemBehaviorSectionProps = {
   defaultValues: BehaviorFormValues
@@ -69,8 +93,11 @@ export function SystemBehaviorSection({
   useResetForm(form, defaultValues)
 
   const onSubmit = async (data: BehaviorFormValues) => {
-    const updates = Object.entries(data).filter(
-      ([key, value]) => value !== defaultValues[key as keyof BehaviorFormValues]
+    const normalized = normalizeFormValues(data)
+    const baseline = normalizeFormValues(defaultValues)
+    const updates = Object.entries(normalized).filter(
+      ([key, value]) =>
+        value !== baseline[key as keyof NormalizedBehaviorValues]
     )
 
     for (const [key, value] of updates) {
@@ -102,6 +129,31 @@ export function SystemBehaviorSection({
                 </FormControl>
                 <FormDescription>
                   {t('Number of times to retry failed requests (0-10)')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='general_setting.stream_no_data_timeout_seconds'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {t('Stream No-Data Timeout (seconds)')}
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min='0'
+                    {...safeNumberFieldProps(field)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Abort a streaming request if the upstream sends no content payload within this many seconds. Keepalive lines do not count. 0 disables the cap. Default 300.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

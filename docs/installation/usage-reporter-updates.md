@@ -139,6 +139,28 @@ Windows 同样运行 `.exe` 并指定日志查看结果，无需弹出后台终�
 NEW_API_TEST_NATIVE_UPDATER=1 go test ./pkg/reporterupdate -run '^TestNativeDarwinSignedUpdate' -count=1
 ```
 
+ZCode 安装和上报回归覆盖首次添加、保留其他采集器、重复安装、兑换失败、本地数据库缺失、三来源选择组合、网关过滤及重复上报保护。以下命令使用临时文件和本机模拟服务：
+
+```sh
+go test ./pkg/usagereporter ./cmd/usage-reporter ./pkg/reporterupdate ./service ./controller
+```
+
+macOS 原生 ZCode 测试使用独立的 LaunchAgent 标签、临时运行目录、模拟服务和模拟用量，测试签名更新后立即上报和等待真实的五分钟定时上报。该测试至少需要五分钟，不操作已安装采集器：
+
+```sh
+NEW_API_TEST_NATIVE_ZCODE=1 go test ./pkg/reporterupdate -run '^TestNativeDarwinZCodeSignedUpdateAndScheduledReport$' -count=1 -v -timeout 10m
+```
+
+另一个原生测试依次安装 Codex、追加 ZCode、重复安装 ZCode，并检查原有配置和状态、实际任务上报及去重。测试构建通过 Go overlay 仅替换任务标签、provider 配置路径及本机模拟服务的 HTTP 限制，避免碰触真实任务或使用生产服务；正式 HTTPS 校验由常规集成测试覆盖：
+
+```sh
+NEW_API_TEST_NATIVE_INSTALL=1 go test ./cmd/usage-reporter -run '^TestNativeDarwinSignedZCodeAddToCodex$' -count=1 -v -timeout 5m
+```
+
+对于大规模中断恢复，还可设置 `NEW_API_TEST_ZCODE_LARGE=1` 运行 `TestZCodeRecoversLargeInterruptedQueue` 和 `TestZCodeFreshLargeHistory`；原生安装测试同时设置 `NEW_API_TEST_NATIVE_ZCODE_RECOVERY=1` 可模拟 9,705 条快照和 8,438 条待发送队列，`NEW_API_TEST_NATIVE_ZCODE_STANDALONE=1` 选择仅安装 ZCode。所有数据和上报服务均为隔离测试数据。
+
+这些隔离测试不能代替目标设备上的完整签名安装验收；Windows 计划任务仍需要在 Windows 实机测试。
+
 本分支已在 macOS 运行上述隔离 LaunchAgent 测试，验证 Codex 与 Claude Code 同时切换、凭据与状态保留、Claude 设置不改写、稳定 helper 调用当前版本及升级后真实 OTLP 入队；提交/回退/篡改由自动回归另行覆盖。真实 Claude CLI 2.1.236 也已通过隔离 HOME 与本地模拟 API 的用户设置、项目覆盖和启动环境三路验证。测试未访问生产服务器或真实模型。
 
 Windows 需要实机验收计划任务、无闪窗、登录补跑、杀毒占用及旧版迁移体验；跨平台编译不能替代实机验收。数据库结构使用 GORM 和跨数据库语句；发布验收还需在可用的 MySQL/PostgreSQL 环境执行迁移与并发激活验证。

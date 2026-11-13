@@ -61,3 +61,46 @@ func TestZCodeProviderConfigErrorsDoNotExposeContent(t *testing.T) {
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "secret-value")
 }
+
+func TestZCodeAccountRoutesFromEffectiveProviderRules(t *testing.T) {
+	root := t.TempDir()
+	current := filepath.Join(root, "config.json")
+	custom := filepath.Join(root, "provider_config.json")
+	builtin := filepath.Join(root, "zcode-builtin.json")
+	require.NoError(t, os.WriteFile(current, []byte(`{"provider":{"direct":{"options":{"baseURL":"https://outside.example"}},"current-wins":{"options":{"baseURL":"https://token.example"}}}}`), 0600))
+	require.NoError(t, os.WriteFile(builtin, []byte(`{"config":{"providerConfigRules":{"providerRules":[{"providerId":"account:direct","config":{"api":{"baseUrl":"https://official.example/v1"}}},{"providerId":"account:override","config":{"api":{"baseUrl":"https://official.example"}}},{"providerId":"current-wins","config":{"api":{"baseUrl":"https://official.example"}}},{"providerId":"account:ambiguous","config":{"api":{"baseUrl":"https://official.example"}}}]}}}`), 0600))
+	require.NoError(t, os.WriteFile(custom, []byte(`{"config":{"providerConfigRules":{"providerRules":[{"providerId":"account:override","config":{"api":{"baseUrl":"https://token.example/v1"}}},{"providerId":"account:ambiguous","config":{"api":{}}}]}}}`), 0600))
+	origins, err := loadZCodeEffectiveProviderOrigins(current, custom, []string{builtin})
+	require.NoError(t, err)
+	policy, err := zcodeRoutePolicy(Config{Server: "https://token.example"})
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		id                string
+		allowed, resolved bool
+	}{
+		{"account:direct", true, true}, {"account:override", false, true},
+		{"current-wins", false, true}, {"account:ambiguous", false, false}, {"missing", false, false},
+	} {
+		_, allowed, resolved, err := resolveZCodeCurrentRoute(policy, origins, nil, nil, tc.id, 100, 101)
+		require.NoError(t, err, tc.id)
+		require.Equal(t, tc.allowed, allowed, tc.id)
+		require.Equal(t, tc.resolved, resolved, tc.id)
+	}
+}
+
+func TestZCodeAccountRulesFailClosedOnConflictOrMalformedInput(t *testing.T) {
+	root := t.TempDir()
+	first, second := filepath.Join(root, "first.json"), filepath.Join(root, "second.json")
+	require.NoError(t, os.WriteFile(first, []byte(`{"config":{"providerConfigRules":{"providerRules":[{"providerId":"account:duplicate","config":{"api":{"baseUrl":"https://one.example"}}},{"providerId":"account:duplicate","config":{"api":{"baseUrl":"https://one.example"}}},{"providerId":"account:conflict","config":{"api":{"baseUrl":"https://one.example"}}},{"providerId":"account:bad","config":{"api":{"baseUrl":"https://user:secret@one.example"}}}]}}}`), 0600))
+	require.NoError(t, os.WriteFile(second, []byte(`{"config":{"providerConfigRules":{"providerRules":[{"providerId":"account:conflict","config":{"api":{"baseUrl":"https://two.example"}}}]}}}`), 0600))
+	origins, err := loadZCodeEffectiveProviderOrigins(filepath.Join(root, "missing"), "", []string{first, second})
+	require.NoError(t, err)
+	for _, id := range []string{"account:duplicate", "account:conflict", "account:bad"} {
+		require.Contains(t, origins, id)
+		require.Empty(t, origins[id], id)
+	}
+	require.NoError(t, os.WriteFile(second, []byte(`{"secret-value":`), 0600))
+	_, err = loadZCodeEffectiveProviderOrigins(filepath.Join(root, "missing"), "", []string{first, second})
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "secret-value")
+}

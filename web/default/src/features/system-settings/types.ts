@@ -340,6 +340,7 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  'general_setting.stream_no_data_timeout_seconds': number
   'external_usage_setting.enabled': boolean
   'external_usage_setting.max_devices_per_user': number
   'external_usage_setting.detail_retention_days': number

@@ -26,7 +26,12 @@ func InstallZCodeReporter(server, token, path string) error {
 	if e == nil {
 		previous = previous.resolveRelativePaths(filepath.Dir(path))
 	}
-	if err := checkZCodeLocalData(previous.WithDefaults()); err != nil {
+	// A first-time ZCode install has no previous config. Validate local data
+	// against the requested server without changing the preserved config.
+	preflight := previous
+	preflight.Server = server
+	preflight.Source = SourceZCode
+	if err := checkZCodeLocalData(preflight.WithDefaults()); err != nil {
 		return err
 	}
 	host, e := os.Hostname()

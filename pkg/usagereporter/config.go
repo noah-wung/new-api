@@ -20,24 +20,25 @@ const (
 )
 
 type Config struct {
-	Server                  string               `json:"server"`
-	Source                  string               `json:"source"`
-	Credential              string               `json:"credential"`
-	CodexDir                string               `json:"codex_dir"`
-	ZCodeDBPath             string               `json:"zcode_db_path,omitempty"`
-	ZCodeProviderConfigPath string               `json:"zcode_provider_config_path,omitempty"`
-	ZCodeProviderRoutes     []ZCodeProviderRoute `json:"zcode_provider_routes,omitempty"`
-	ZCodeGatewayHosts       []string             `json:"zcode_gateway_hosts,omitempty"`
-	ZCodeExcludedProviders  []string             `json:"zcode_excluded_providers,omitempty"`
-	StatePath               string               `json:"state_path"`
-	AcceptWindowDays        int                  `json:"accept_window_days,omitempty"`
-	GatewayURLs             []string             `json:"gateway_urls,omitempty"`
-	ExcludedCodexProviders  []string             `json:"excluded_codex_providers,omitempty"`
-	CodexConfigPath         string               `json:"codex_config_path,omitempty"`
-	ClaudeListen            string               `json:"claude_listen,omitempty"`
-	ClaudeReceiverToken     string               `json:"claude_receiver_token,omitempty"`
-	ClaudeAutoRoute         bool                 `json:"claude_auto_route,omitempty"`
-	ClaudeExternalURLs      []string             `json:"claude_external_urls"`
+	Server                         string               `json:"server"`
+	Source                         string               `json:"source"`
+	Credential                     string               `json:"credential"`
+	CodexDir                       string               `json:"codex_dir"`
+	ZCodeDBPath                    string               `json:"zcode_db_path,omitempty"`
+	ZCodeProviderConfigPath        string               `json:"zcode_provider_config_path,omitempty"`
+	ZCodeBuiltinProviderConfigPath string               `json:"zcode_builtin_provider_config_path,omitempty"`
+	ZCodeProviderRoutes            []ZCodeProviderRoute `json:"zcode_provider_routes,omitempty"`
+	ZCodeGatewayHosts              []string             `json:"zcode_gateway_hosts,omitempty"`
+	ZCodeExcludedProviders         []string             `json:"zcode_excluded_providers,omitempty"`
+	StatePath                      string               `json:"state_path"`
+	AcceptWindowDays               int                  `json:"accept_window_days,omitempty"`
+	GatewayURLs                    []string             `json:"gateway_urls,omitempty"`
+	ExcludedCodexProviders         []string             `json:"excluded_codex_providers,omitempty"`
+	CodexConfigPath                string               `json:"codex_config_path,omitempty"`
+	ClaudeListen                   string               `json:"claude_listen,omitempty"`
+	ClaudeReceiverToken            string               `json:"claude_receiver_token,omitempty"`
+	ClaudeAutoRoute                bool                 `json:"claude_auto_route,omitempty"`
+	ClaudeExternalURLs             []string             `json:"claude_external_urls"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -77,6 +78,9 @@ func SaveConfig(path string, cfg Config) error {
 		}
 		if cfg.ZCodeProviderConfigPath == "" {
 			cfg.ZCodeProviderConfigPath = existing.ZCodeProviderConfigPath
+		}
+		if cfg.ZCodeBuiltinProviderConfigPath == "" {
+			cfg.ZCodeBuiltinProviderConfigPath = existing.ZCodeBuiltinProviderConfigPath
 		}
 		if cfg.ZCodeProviderRoutes == nil {
 			cfg.ZCodeProviderRoutes = existing.ZCodeProviderRoutes
@@ -204,6 +208,7 @@ func (c Config) trimmed() Config {
 	c.CodexDir = strings.TrimSpace(c.CodexDir)
 	c.ZCodeDBPath = strings.TrimSpace(c.ZCodeDBPath)
 	c.ZCodeProviderConfigPath = strings.TrimSpace(c.ZCodeProviderConfigPath)
+	c.ZCodeBuiltinProviderConfigPath = strings.TrimSpace(c.ZCodeBuiltinProviderConfigPath)
 	c.StatePath = strings.TrimSpace(c.StatePath)
 	c.CodexConfigPath = strings.TrimSpace(c.CodexConfigPath)
 	c.ClaudeListen = strings.TrimSpace(c.ClaudeListen)
@@ -214,6 +219,7 @@ func (c Config) resolveRelativePaths(baseDir string) Config {
 	c.CodexDir = resolveRelativePath(baseDir, c.CodexDir)
 	c.ZCodeDBPath = resolveRelativePath(baseDir, c.ZCodeDBPath)
 	c.ZCodeProviderConfigPath = resolveRelativePath(baseDir, c.ZCodeProviderConfigPath)
+	c.ZCodeBuiltinProviderConfigPath = resolveRelativePath(baseDir, c.ZCodeBuiltinProviderConfigPath)
 	c.StatePath = resolveRelativePath(baseDir, c.StatePath)
 	if c.CodexConfigPath != "" {
 		c.CodexConfigPath = resolveRelativePath(baseDir, c.CodexConfigPath)

@@ -2,6 +2,7 @@ package usagereporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,43 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReporterKeepsQueueWhenBatchAcknowledgementCannotBePersisted(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload ReportPayload
+		if common.DecodeJson(r.Body, &payload) != nil || len(payload.Events) != 1 {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		requests++
+		ack := ReportAcknowledgement{AcceptedEventIDs: []string{payload.Events[0].EventID}}
+		if requests > 1 {
+			ack = ReportAcknowledgement{DuplicateEventIDs: []string{payload.Events[0].EventID}}
+		}
+		body, _ := common.Marshal(map[string]any{"success": true, "data": ack})
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+	saveErr := errors.New("fixture state save failed")
+	cfg := ReporterConfig{Source: SourceZCode, Server: server.URL, Credential: "fixture", StatePath: filepath.Join(t.TempDir(), "state.json"), OnResults: func([]ReporterResult) error { return saveErr }}
+	reporter, err := NewReporter(cfg)
+	require.NoError(t, err)
+	event := reporterTestEvent("durable-ack", "https://external.example")
+	_, err = reporter.Report(context.Background(), Collection{Events: []CollectedEvent{event}, Commit: func() error { return nil }})
+	require.ErrorIs(t, err, saveErr)
+	_, err = os.Stat(filepath.Join(reporter.queueDir, event.Event.EventID+".json"))
+	require.NoError(t, err, "queue must survive a failure to persist the batch ACK")
+	var restored []ReporterResult
+	cfg.OnResults = func(results []ReporterResult) error { restored = append(restored, results...); return nil }
+	restarted, err := NewReporter(cfg)
+	require.NoError(t, err)
+	_, err = restarted.FlushContext(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []ReporterResult{{EventID: event.Event.EventID, Result: "duplicate"}}, restored)
+	_, err = os.Stat(filepath.Join(restarted.queueDir, event.Event.EventID+".json"))
+	require.True(t, os.IsNotExist(err))
+}
 
 func reporterTestEvent(id, origin string) CollectedEvent {
 	return CollectedEvent{Origin: origin, ClientVersion: "client-fixture", Event: UsageEvent{

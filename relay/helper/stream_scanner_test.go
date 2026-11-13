@@ -571,3 +571,170 @@ func TestStreamScannerHandler_StreamStatus_ReplacesPreInitialized(t *testing.T) 
 	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 	assert.Equal(t, 0, info.StreamStatus.TotalErrorCount())
 }
+
+// ---------- No-data watchdog ----------
+//
+// Regression coverage for the black-holed-upstream incident (2026-11-13): an
+// upstream that accepts a request and streams only keepalive/comment lines
+// while never generating used to hold the stream open until the client gave
+// up (observed: 16–74 minutes), because the idle timeout was refreshed by
+// every line. The watchdog now requires a forwardable "data:" payload within
+// STREAM_NO_DATA_TIMEOUT_SECONDS.
+
+func TestStreamScannerHandler_NoDataTimeout_KillsKeepaliveOnlyStream(t *testing.T) {
+	// Not parallel: mutates the shared general setting
+	setting := operation_setting.GetGeneralSetting()
+	oldCap := setting.StreamNoDataTimeoutSeconds
+	setting.StreamNoDataTimeoutSeconds = 2
+	t.Cleanup(func() { setting.StreamNoDataTimeoutSeconds = oldCap })
+
+	pr, pw := io.Pipe()
+	t.Cleanup(func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	// Writer keeps sending keepalive comment lines far beyond the cap and
+	// never sends any "data:" payload — exactly the black-hole shape.
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		for i := 0; i < 30; i++ { // 30 * 300ms = 9s, well past the 2s cap
+			if _, err := fmt.Fprint(pw, ": keepalive\n\n"); err != nil {
+				return
+			}
+			time.Sleep(300 * time.Millisecond)
+		}
+	}()
+
+	var count atomic.Int64
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+			count.Add(1)
+		})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(8 * time.Second):
+		t.Fatal("handler did not return after no-data cap")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonNoDataTimeout, info.StreamStatus.EndReason)
+	assert.False(t, info.StreamStatus.IsNormalEnd())
+	assert.Equal(t, int64(0), count.Load(), "no payload should have been forwarded")
+
+	// The client must receive an explicit error event, not a silent close.
+	body := recorder.Body.String()
+	assert.Contains(t, body, "no_data_timeout")
+	assert.Contains(t, body, `"error"`)
+}
+
+func TestStreamScannerHandler_NoDataTimeout_RealDataKeepsStreamAlive(t *testing.T) {
+	// Not parallel: mutates the shared general setting
+	setting := operation_setting.GetGeneralSetting()
+	oldCap := setting.StreamNoDataTimeoutSeconds
+	setting.StreamNoDataTimeoutSeconds = 1
+	t.Cleanup(func() { setting.StreamNoDataTimeoutSeconds = oldCap })
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		// Real data every 300ms — well inside the 1s cap — for ~1.8s total,
+		// i.e. the stream outruns the cap several times without being cut.
+		for i := 0; i < 6; i++ {
+			fmt.Fprintf(pw, "data: chunk_%d\n", i)
+			time.Sleep(300 * time.Millisecond)
+		}
+		fmt.Fprint(pw, "data: [DONE]\n")
+	}()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	var count atomic.Int64
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+			count.Add(1)
+		})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for stream to finish")
+	}
+
+	assert.Equal(t, int64(6), count.Load(), "real data must keep the stream alive")
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+	assert.NotContains(t, recorder.Body.String(), "no_data_timeout")
+}
+
+func TestStreamScannerHandler_SilentUpstream_StillUsesIdleTimeout(t *testing.T) {
+	// Not parallel: mutates global constants. Pins the layering: a fully
+	// silent upstream (no lines at all) is still killed by the pre-existing
+	// idle timeout, not by the no-data watchdog.
+	oldTimeout := constant.StreamingTimeout
+	setting := operation_setting.GetGeneralSetting()
+	oldCap := setting.StreamNoDataTimeoutSeconds
+	constant.StreamingTimeout = 1
+	setting.StreamNoDataTimeoutSeconds = 10
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldTimeout
+		setting.StreamNoDataTimeoutSeconds = oldCap
+	})
+
+	pr, pw := io.Pipe()
+	go func() {
+		time.Sleep(3 * time.Second)
+		pw.Close()
+	}()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for idle timeout")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonTimeout, info.StreamStatus.EndReason)
+}

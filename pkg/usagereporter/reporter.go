@@ -40,7 +40,13 @@ type ReporterConfig struct {
 	// RecheckRoute can defer a queued event when source-specific historical
 	// evidence no longer proves the original upstream route.
 	RecheckRoute func(CollectedEvent) (bool, error)
-	OnResult     func(string, string) error
+	OnResults    func([]ReporterResult) error
+	OnProgress   func()
+}
+
+type ReporterResult struct {
+	EventID string
+	Result  string
 }
 
 type ReportStats struct {
@@ -301,8 +307,8 @@ func (c *Reporter) FlushContext(ctx context.Context) (stats ReportStats, flushEr
 			continue
 		}
 		if !allowed {
-			if c.cfg.OnResult != nil {
-				if err := c.cfg.OnResult(queued.Event.EventID, "excluded"); err != nil {
+			if c.cfg.OnResults != nil {
+				if err := c.cfg.OnResults([]ReporterResult{{EventID: queued.Event.EventID, Result: "excluded"}}); err != nil {
 					c.mu.Unlock()
 					return stats, err
 				}
@@ -359,25 +365,37 @@ func (c *Reporter) FlushContext(ctx context.Context) (stats ReportStats, flushEr
 				return stats, err
 			}
 		}
+		var results []ReporterResult
 		for _, id := range ack.AcceptedEventIDs {
 			if batchPaths[id] != "" {
-				if c.cfg.OnResult != nil {
-					if err := c.cfg.OnResult(id, "accepted"); err != nil {
-						c.mu.Unlock()
-						return stats, err
-					}
-				}
+				results = append(results, ReporterResult{EventID: id, Result: "accepted"})
+			}
+		}
+		for _, id := range ack.DuplicateEventIDs {
+			if batchPaths[id] != "" {
+				results = append(results, ReporterResult{EventID: id, Result: "duplicate"})
+			}
+		}
+		for _, rejection := range ack.Rejected {
+			if batchPaths[rejection.EventID] != "" {
+				results = append(results, ReporterResult{EventID: rejection.EventID, Result: "rejected"})
+			}
+		}
+		// Persist source-specific ACK state for the entire batch before removing
+		// any queued record, so a crash cannot lose an acknowledgement.
+		if len(results) > 0 && c.cfg.OnResults != nil {
+			if err := c.cfg.OnResults(results); err != nil {
+				c.mu.Unlock()
+				return stats, err
+			}
+		}
+		for _, id := range ack.AcceptedEventIDs {
+			if batchPaths[id] != "" {
 				stats.Accepted++
 			}
 		}
 		for _, id := range ack.DuplicateEventIDs {
 			if batchPaths[id] != "" {
-				if c.cfg.OnResult != nil {
-					if err := c.cfg.OnResult(id, "duplicate"); err != nil {
-						c.mu.Unlock()
-						return stats, err
-					}
-				}
 				stats.Duplicate++
 			}
 		}
@@ -391,12 +409,6 @@ func (c *Reporter) FlushContext(ctx context.Context) (stats ReportStats, flushEr
 		}
 		for _, rejection := range ack.Rejected {
 			if path := batchPaths[rejection.EventID]; path != "" {
-				if c.cfg.OnResult != nil {
-					if err := c.cfg.OnResult(rejection.EventID, "rejected"); err != nil {
-						c.mu.Unlock()
-						return stats, err
-					}
-				}
 				stats.Rejected++
 				// Preserve rejected usage for diagnosis without a retry loop. Do
 				// not persist arbitrary response text returned by a remote server.
@@ -407,6 +419,9 @@ func (c *Reporter) FlushContext(ctx context.Context) (stats ReportStats, flushEr
 			}
 		}
 		c.mu.Unlock()
+		if c.cfg.OnProgress != nil {
+			c.cfg.OnProgress()
+		}
 	}
 
 	return stats, nil

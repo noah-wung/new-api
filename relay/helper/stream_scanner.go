@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -25,6 +26,10 @@ const (
 	InitialScannerBufferSize    = 64 << 10  // 64KB (64*1024)
 	DefaultMaxScannerBufferSize = 128 << 20 // 64MB (64*1024*1024) default SSE buffer size
 	DefaultPingInterval         = 10 * time.Second
+	// streamNoDataCheckInterval is how often the no-data watchdog re-checks the
+	// last-real-data timestamp. It only bounds the detection latency of the
+	// no-data cap (detection = cap + interval at worst); keep it small.
+	streamNoDataCheckInterval = 1 * time.Second
 	// streamWriteTimeout bounds a single blocked write to a slow client so the
 	// unconditional wg.Wait() in cleanup can always finish. Without it, a slow
 	// but connected client (full TCP buffer, no server WriteTimeout) could hang
@@ -77,7 +82,16 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		wg          sync.WaitGroup // 用于等待所有 goroutine 退出
 		cleanupOnce sync.Once
 		stopOnce    sync.Once
+		// lastRealData tracks the last time a forwardable "data:" payload line
+		// arrived. Keepalive/comment lines refresh the idle ticker (pipe alive)
+		// but deliberately do NOT refresh this: a stuck generation must still
+		// hit the no-data cap. Atomic because scanner goroutine writes while
+		// the no-data watchdog reads.
+		lastRealData atomic.Int64
 	)
+	lastRealData.Store(time.Now().UnixNano())
+	// 无数据上限来自 general_setting（管理后台可热改）；0 表示禁用看门狗。
+	noDataCap := time.Duration(operation_setting.GetGeneralSetting().StreamNoDataTimeoutSeconds) * time.Second
 
 	stop := func() {
 		stopOnce.Do(func() {
@@ -244,6 +258,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 			if !strings.HasPrefix(data, "[DONE]") {
 				info.SetFirstResponseTime()
+				lastRealData.Store(time.Now().UnixNano())
 				info.ReceivedResponseCount++
 
 				select {
@@ -269,6 +284,35 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
 	})
 
+	// 无数据看门狗：上面的空闲 ticker 会被任意上游行（含保活行）刷新——保活行
+	// 证明管道活着，但不代表在生成。上游黑洞（接收请求、只回保活、永不产出）时
+	// 该 ticker 永远不会触发，流会一直挂到客户端放弃或上游自方的小时级超时。
+	// 此看门狗要求在 noDataCap 内必须出现过可转发的 "data:" 载荷行，否则主动
+	// 断流，让客户端拿到明确错误并及时重试。
+	if noDataCap > 0 {
+		wg.Add(1)
+		gopool.Go(func() {
+			defer wg.Done()
+			checkTicker := time.NewTicker(streamNoDataCheckInterval)
+			defer checkTicker.Stop()
+			for {
+				select {
+				case <-checkTicker.C:
+					if time.Since(time.Unix(0, lastRealData.Load())) >= noDataCap {
+						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonNoDataTimeout,
+							fmt.Errorf("no forwardable data within %s", noDataCap))
+						stop()
+						return
+					}
+				case <-ctx.Done():
+					return
+				case <-stopChan:
+					return
+				}
+			}
+		})
+	}
+
 	// 主循环等待完成或超时
 	select {
 	case <-ticker.C:
@@ -282,6 +326,23 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}
 
 	cleanup()
+	// 客户端还连着时（no_data_timeout 正是这种场景），补发一条 SSE 错误事件，
+	// 让客户端立刻感知失败并可自动重试，而不是看到流静默结束。
+	if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNoDataTimeout ||
+		info.StreamStatus.EndReason == relaycommon.StreamEndReasonTimeout {
+		writeMutex.Lock()
+		ExtendWriteDeadline(c)
+		errPayload, marshalErr := common.Marshal(gin.H{"error": gin.H{
+			"message": fmt.Sprintf("stream aborted without upstream data (reason=%s)",
+				info.StreamStatus.EndReason),
+			"type": "new_api_error",
+			"code": string(info.StreamStatus.EndReason),
+		}})
+		writeMutex.Unlock()
+		if marshalErr == nil {
+			_ = StringData(c, string(errPayload))
+		}
+	}
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))
 	} else {

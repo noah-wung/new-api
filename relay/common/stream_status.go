@@ -10,15 +10,19 @@ import (
 type StreamEndReason string
 
 const (
-	StreamEndReasonNone        StreamEndReason = ""
-	StreamEndReasonDone        StreamEndReason = "done"
-	StreamEndReasonTimeout     StreamEndReason = "timeout"
-	StreamEndReasonClientGone  StreamEndReason = "client_gone"
-	StreamEndReasonScannerErr  StreamEndReason = "scanner_error"
-	StreamEndReasonHandlerStop StreamEndReason = "handler_stop"
-	StreamEndReasonEOF         StreamEndReason = "eof"
-	StreamEndReasonPanic       StreamEndReason = "panic"
-	StreamEndReasonPingFail    StreamEndReason = "ping_fail"
+	StreamEndReasonNone    StreamEndReason = ""
+	StreamEndReasonDone    StreamEndReason = "done"
+	StreamEndReasonTimeout StreamEndReason = "timeout"
+	// StreamEndReasonNoDataTimeout fires when no forwardable "data:" payload
+	// arrives within StreamNoDataTimeoutSeconds, even though the upstream may
+	// still be sending keepalive/comment lines (pipe alive, generation stuck).
+	StreamEndReasonNoDataTimeout StreamEndReason = "no_data_timeout"
+	StreamEndReasonClientGone    StreamEndReason = "client_gone"
+	StreamEndReasonScannerErr    StreamEndReason = "scanner_error"
+	StreamEndReasonHandlerStop   StreamEndReason = "handler_stop"
+	StreamEndReasonEOF           StreamEndReason = "eof"
+	StreamEndReasonPanic         StreamEndReason = "panic"
+	StreamEndReasonPingFail      StreamEndReason = "ping_fail"
 )
 
 const maxStreamErrorEntries = 20
@@ -29,9 +33,9 @@ type StreamErrorEntry struct {
 }
 
 type StreamStatus struct {
-	EndReason  StreamEndReason
-	EndError   error
-	endOnce    sync.Once
+	EndReason StreamEndReason
+	EndError  error
+	endOnce   sync.Once
 
 	mu         sync.Mutex
 	Errors     []StreamErrorEntry

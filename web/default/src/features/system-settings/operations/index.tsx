@@ -30,6 +30,7 @@ const defaultOperationsSettings: OperationsSettings = {
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
+  'general_setting.stream_no_data_timeout_seconds': 300,
   'external_usage_setting.enabled': false,
   'external_usage_setting.max_devices_per_user': 3,
   'external_usage_setting.detail_retention_days': 180,

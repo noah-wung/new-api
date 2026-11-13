@@ -14,6 +14,10 @@ type GeneralSetting struct {
 	DocsLink            string `json:"docs_link"`
 	PingIntervalEnabled bool   `json:"ping_interval_enabled"`
 	PingIntervalSeconds int    `json:"ping_interval_seconds"`
+	// StreamNoDataTimeoutSeconds 无数据看门狗上限：流式请求在该秒数内没有出现
+	// 任何可转发的 "data:" 载荷行（上游保活行不算）则主动断流并向客户端回显
+	// 错误，防止上游黑洞请求时被保活行无限续命。0 表示禁用该上限。
+	StreamNoDataTimeoutSeconds int `json:"stream_no_data_timeout_seconds"`
 	// 当前站点额度展示类型：USD / CNY / TOKENS
 	QuotaDisplayType string `json:"quota_display_type"`
 	// 自定义货币符号，用于 CUSTOM 展示类型
@@ -27,6 +31,7 @@ var generalSetting = GeneralSetting{
 	DocsLink:                   "https://docs.newapi.pro",
 	PingIntervalEnabled:        false,
 	PingIntervalSeconds:        60,
+	StreamNoDataTimeoutSeconds: 300,
 	QuotaDisplayType:           QuotaDisplayTypeUSD,
 	CustomCurrencySymbol:       "¤",
 	CustomCurrencyExchangeRate: 1.0,

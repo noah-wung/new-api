@@ -14,6 +14,8 @@ import (
 
 const SourceZCode = "zcode"
 
+const zcodeReportChunkSize = 100
+
 func zcodeRoutePolicy(cfg Config) (*RoutePolicy, error) {
 	policy, err := NewRoutePolicy(cfg.Server, cfg.GatewayURLs, nil)
 	if err != nil {
@@ -40,7 +42,7 @@ func checkZCodeLocalData(cfg Config) error {
 	if err != nil {
 		return err
 	}
-	if _, err := loadZCodeProviderOrigins(cfg.ZCodeProviderConfigPath); err != nil {
+	if _, err := zcodeCurrentProviderOrigins(cfg); err != nil {
 		return err
 	}
 	_, err = readZCodeUsagePage(context.Background(), cfg.ZCodeDBPath, 0, 1)
@@ -52,8 +54,20 @@ func checkZCodeLocalData(cfg Config) error {
 		if err != nil {
 			return err
 		}
-		_, err = loadZCodeState(path, sha256Hex(serverIdentity(cfg.Server)+"\x00"+cfg.Credential))
-		return err
+		namespace := sha256Hex(serverIdentity(cfg.Server) + "\x00" + cfg.Credential)
+		state, err := loadZCodeState(path, namespace)
+		if err != nil {
+			return err
+		}
+		archive, err := openZCodeArchive(path, namespace, false, true)
+		if err != nil {
+			return err
+		}
+		if err := state.validateArchive(archive); err != nil {
+			_ = archive.close()
+			return err
+		}
+		return archive.close()
 	}
 	return nil
 }
@@ -64,6 +78,15 @@ func runZCodeCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 	if err != nil {
 		return err
 	}
+	state.archive, err = openZCodeArchive(cfg.StatePath, namespace, false, false)
+	if err != nil {
+		return err
+	}
+	if err := state.validateArchive(state.archive); err != nil {
+		_ = state.archive.close()
+		return err
+	}
+	defer func() { _ = state.archive.close() }()
 	queueRoot := filepath.Join(cfg.StatePath+".usage-queue", SourceZCode)
 	entries, err := os.ReadDir(queueRoot)
 	if err != nil && !os.IsNotExist(err) {
@@ -78,7 +101,7 @@ func runZCodeCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 	if err != nil {
 		return err
 	}
-	currentRoutes, err := loadZCodeProviderOrigins(cfg.ZCodeProviderConfigPath)
+	currentRoutes, err := zcodeCurrentProviderOrigins(cfg)
 	if err != nil {
 		return err
 	}
@@ -138,16 +161,25 @@ func runZCodeCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 		origin, allowed, resolved, err := resolveZCodeCurrentRoute(policy, currentRoutes, cfg.ZCodeProviderRoutes, cfg.ZCodeExcludedProviders, snapshot.ProviderID, snapshot.StartedAt, snapshot.Event.OccurredAt)
 		return err == nil && resolved && allowed && origin == event.Origin, err
 	}
-	onResult := func(id, result string) error {
-		snapshot, ok := state.Snapshots[id]
-		if !ok {
-			return errors.New("ZCode acknowledgement has no snapshot")
+	onResults := func(results []ReporterResult) error {
+		for _, result := range results {
+			snapshot, ok := state.Snapshots[result.EventID]
+			if !ok {
+				return errors.New("ZCode acknowledgement has no snapshot")
+			}
+			snapshot.Submitted, snapshot.Delivery = true, result.Result
+			state.Snapshots[result.EventID] = snapshot
 		}
-		snapshot.Submitted, snapshot.Delivery = true, result
-		state.Snapshots[id] = snapshot
 		return state.save(cfg.StatePath)
 	}
-	reporter, err := NewReporter(ReporterConfig{Source: SourceZCode, Server: cfg.Server, Credential: cfg.Credential, StatePath: cfg.StatePath, AcceptWindowDays: cfg.AcceptWindowDays, GatewayURLs: cfg.GatewayURLs, GatewayHosts: cfg.ZCodeGatewayHosts, RecheckRoute: recheck, OnResult: onResult, StopOnQueueFull: true})
+	healthy := false
+	markHealthy := func() {
+		if !healthy && ctx.Err() == nil {
+			healthy = true
+			observeHealthy(ctx)
+		}
+	}
+	reporter, err := NewReporter(ReporterConfig{Source: SourceZCode, Server: cfg.Server, Credential: cfg.Credential, StatePath: cfg.StatePath, AcceptWindowDays: cfg.AcceptWindowDays, GatewayURLs: cfg.GatewayURLs, GatewayHosts: cfg.ZCodeGatewayHosts, RecheckRoute: recheck, OnResults: onResults, OnProgress: markHealthy, StopOnQueueFull: true})
 	if err != nil {
 		return err
 	}
@@ -156,6 +188,10 @@ func runZCodeCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 	}
 	queuedStats, err := reporter.FlushContext(ctx)
 	if err != nil {
+		var delivery *DeliveryError
+		if errors.As(err, &delivery) {
+			markHealthy()
+		}
 		return err
 	}
 	var events []CollectedEvent
@@ -193,25 +229,41 @@ func runZCodeCollector(ctx context.Context, cfg Config, output, diagnostics io.W
 	if err := state.save(cfg.StatePath); err != nil {
 		return err
 	}
-	stats, err := reporter.Report(ctx, Collection{Events: events, Commit: func() error {
-		for _, id := range submitted {
-			snapshot := state.Snapshots[id]
-			snapshot.Submitted = true
-			if snapshot.Delivery == "" {
-				snapshot.Delivery = "queued"
+	stats := queuedStats
+	for offset := 0; offset < len(events) || offset == 0; offset += zcodeReportChunkSize {
+		end := min(offset+zcodeReportChunkSize, len(events))
+		ids := submitted[offset:end]
+		partial, reportErr := reporter.Report(ctx, Collection{Events: events[offset:end], Commit: func() error {
+			for _, id := range ids {
+				snapshot := state.Snapshots[id]
+				snapshot.Submitted = true
+				if snapshot.Delivery == "" {
+					snapshot.Delivery = "queued"
+				}
+				state.Snapshots[id] = snapshot
 			}
-			state.Snapshots[id] = snapshot
+			return state.save(cfg.StatePath)
+		}})
+		stats.add(partial)
+		if reportErr != nil {
+			err = reportErr
+			break
 		}
-		return state.save(cfg.StatePath)
-	}})
-	stats.add(queuedStats)
+		markHealthy()
+		if end == len(events) {
+			break
+		}
+	}
 	fmt.Fprintf(output, "ZCode: %d sent, %d accepted, %d duplicate, %d rejected; %d unresolved, %d excluded, %d pending, %d invalid, %d conflicts, %d outside window\n", stats.Sent, stats.Accepted, stats.Duplicate, stats.Rejected, unresolved, excluded, pending, invalid, conflicts, outsideWindow)
 	if conflicts > 0 || invalid > 0 {
 		fmt.Fprintln(diagnostics, "ZCode usage requires local review; totals may be incomplete")
 	}
 	var delivery *DeliveryError
 	if err == nil || errors.As(err, &delivery) && ctx.Err() == nil {
-		observeHealthy(ctx)
+		markHealthy()
+		if archiveErr := state.compact(cfg.StatePath); archiveErr != nil {
+			return archiveErr
+		}
 	}
 	return err
 }

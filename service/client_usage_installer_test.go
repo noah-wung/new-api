@@ -115,6 +115,55 @@ func TestClientSourceSelectorSupportsIndependentFutureSources(t *testing.T) {
 	assert.Contains(t, string(output), "  [ ] Codex\n> [x] Claude Code\n  [x] Future client's tool")
 }
 
+func TestClientSourceSelectorAllZCodeCombinations(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX script execution requires sh")
+	}
+	for mask := 0; mask < 8; mask++ {
+		t.Run(fmt.Sprintf("selection_%03b", mask), func(t *testing.T) {
+			requests := make(chan url.Values, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests <- r.URL.Query()
+				_, _ = w.Write([]byte("exit 0\n"))
+			}))
+			defer server.Close()
+			choices := []clientInstallChoice{
+				{Name: "Codex", TokenParameter: "codex_token", Token: "codex"},
+				{Name: "Claude Code", TokenParameter: "claude_token", Token: "claude"},
+				{Name: "ZCode", TokenParameter: "zcode_token", Token: "zcode"},
+			}
+			script := renderClientSourceSelector("macos", server.URL+"?", choices)
+			var keys strings.Builder
+			for i := range choices {
+				if mask&(1<<i) != 0 {
+					keys.WriteByte(' ')
+				}
+				if i < len(choices)-1 {
+					keys.WriteString("\x1b[B")
+				}
+			}
+			keys.WriteByte('\r')
+			runner := exec.Command("bash", "-c", script)
+			runner.Stdin = strings.NewReader(keys.String())
+			out, err := runner.CombinedOutput()
+			require.NoError(t, err, string(out))
+			if mask == 0 {
+				require.Empty(t, requests)
+				return
+			}
+			require.Len(t, requests, 1)
+			query := <-requests
+			for i, choice := range choices {
+				if mask&(1<<i) != 0 {
+					require.Equal(t, choice.Token, query.Get(choice.TokenParameter))
+				} else {
+					require.Empty(t, query.Get(choice.TokenParameter))
+				}
+			}
+		})
+	}
+}
+
 func TestClientSourceSelectorRestoresRealTerminal(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX terminal test")
